@@ -1,25 +1,51 @@
 {
   "expo": {
-    "name": "bilo-iptv-player",
+    "name": "Bilo IPTV Player",
     "slug": "bilo-iptv-player",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
+    "icon": "./assets/android-icon-foreground.png",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "@react-native-tvos/config-tv",
+        {
+          "isTV": true,
+          "showBanner": true,
+          "banner": "./assets/tv-banner.png"
+        }
+      ]
+    ],
     "android": {
+      "package": "com.anonymous.biloiptvplayer",
+      "usesCleartextTraffic": true,
+      "banner": "./assets/tv-banner.png",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#2B2D42"
       },
-      "predictiveBackGestureEnabled": false
+      "intentFilters": [
+        {
+          "action": "android.intent.action.MAIN",
+          "category": [
+            "android.intent.category.LEANBACK_LAUNCHER",
+            "android.intent.category.LAUNCHER"
+          ]
+        }
+      ],
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "extra": {
+      "eas": {
+        "projectId": "c01bd170-fd85-48e7-80a4-d4b7fd8159ca"
+      }
     }
   }
 }
