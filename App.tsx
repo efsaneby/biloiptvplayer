@@ -10,6 +10,7 @@ import {
   BackHandler,
   Modal,
   TextInput,
+  ScrollView,
 } from "react-native";
 import Video from "react-native-video";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -25,22 +26,74 @@ const DEFAULT_SERVER = "http://line.tivi-ott.net:80";
 const DEFAULT_USER = "REWKDQ";
 const DEFAULT_PASS = "YV6872";
 
+type ScreenType = "dashboard" | "live" | "movies" | "series";
+
+interface VodItem {
+  stream_id: number;
+  name: string;
+  stream_icon: string;
+  category_id: string;
+  container_extension: string;
+  rating?: string;
+}
+
+interface SeriesItem {
+  series_id: number;
+  name: string;
+  cover: string;
+  category_id: string;
+  plot?: string;
+  rating?: string;
+}
+
+interface Episode {
+  id: string;
+  episode_num: number;
+  title: string;
+  container_extension: string;
+}
+
 export default function App() {
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>("dashboard");
+
+  // Live State
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
-
   const [allChannels, setAllChannels] = useState<Channel[]>([]);
   const [filteredChannels, setFilteredChannels] = useState<Channel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+
+  // Movies State
+  const [movieCategories, setMovieCategories] = useState<Category[]>([]);
+  const [selectedMovieCatId, setSelectedMovieCatId] = useState<string>("all");
+  const [allMovies, setAllMovies] = useState<VodItem[]>([]);
+  const [filteredMovies, setFilteredMovies] = useState<VodItem[]>([]);
+  const [selectedMovie, setSelectedMovie] = useState<VodItem | null>(null);
+  const [moviesLoaded, setMoviesLoaded] = useState<boolean>(false);
+  const [moviesLoading, setMoviesLoading] = useState<boolean>(false);
+
+  // Series State
+  const [seriesCategories, setSeriesCategories] = useState<Category[]>([]);
+  const [selectedSeriesCatId, setSelectedSeriesCatId] = useState<string>("all");
+  const [allSeries, setAllSeries] = useState<SeriesItem[]>([]);
+  const [filteredSeries, setFilteredSeries] = useState<SeriesItem[]>([]);
+  const [selectedSeries, setSelectedSeries] = useState<SeriesItem | null>(null);
+  const [episodes, setEpisodes] = useState<{ [season: string]: Episode[] }>({});
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [seriesLoading, setSeriesLoading] = useState<boolean>(false);
+  const [seriesLoaded, setSeriesLoaded] = useState<boolean>(false);
+
+  // General Playback & UI State
+  const [activeMediaUrl, setActiveMediaUrl] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
-
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState<boolean>(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
+  // Auth State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [serverInput, setServerInput] = useState<string>(DEFAULT_SERVER);
   const [userInput, setUserInput] = useState<string>(DEFAULT_USER);
@@ -65,6 +118,17 @@ export default function App() {
       }
       if (isFullscreen) {
         setIsFullscreen(false);
+        setActiveMediaUrl(null);
+        return true;
+      }
+      if (selectedSeries) {
+        setSelectedSeries(null);
+        setEpisodes({});
+        return true;
+      }
+      if (currentScreen !== "dashboard") {
+        setCurrentScreen("dashboard");
+        setSelectedMovie(null);
         return true;
       }
       return false;
@@ -75,52 +139,70 @@ export default function App() {
       backAction,
     );
     return () => backHandler.remove();
-  }, [isFullscreen, isModalOpen]);
+  }, [isFullscreen, isModalOpen, currentScreen, selectedSeries]);
 
-  // Kategori ve Arama Değiştiğinde Filtrele
+  // Canlı Yayın Filtreleme
   useEffect(() => {
     let result = allChannels;
-
-    // 1. Kategori Filtresi
     if (selectedCategoryId === "favorites") {
       result = result.filter((c) => favorites.includes(c.id));
     } else if (selectedCategoryId !== "all") {
       result = result.filter((c) => c.group === selectedCategoryId);
     }
-
-    // 2. Arama Filtresi
     if (searchQuery.trim() !== "") {
       result = result.filter((c) =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
-
     setFilteredChannels(result);
   }, [selectedCategoryId, searchQuery, allChannels, favorites]);
+
+  // Film Filtreleme
+  useEffect(() => {
+    let result = allMovies;
+    if (selectedMovieCatId !== "all") {
+      result = result.filter((m) => m.category_id === selectedMovieCatId);
+    }
+    if (searchQuery.trim() !== "") {
+      result = result.filter((m) =>
+        m.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+    }
+    setFilteredMovies(result);
+  }, [selectedMovieCatId, searchQuery, allMovies]);
+
+  // Dizi Filtreleme
+  useEffect(() => {
+    let result = allSeries;
+    if (selectedSeriesCatId !== "all") {
+      result = result.filter((s) => s.category_id === selectedSeriesCatId);
+    }
+    if (searchQuery.trim() !== "") {
+      result = result.filter((s) =>
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+    }
+    setFilteredSeries(result);
+  }, [selectedSeriesCatId, searchQuery, allSeries]);
 
   const loadSavedFavorites = async () => {
     try {
       const savedFavs = await AsyncStorage.getItem(STORAGE_FAVS);
-      if (savedFavs) {
-        setFavorites(JSON.parse(savedFavs));
-      }
+      if (savedFavs) setFavorites(JSON.parse(savedFavs));
     } catch (e) {
-      console.error("Favoriler yüklenemedi:", e);
+      console.error(e);
     }
   };
 
   const toggleFavorite = async (channelId: string) => {
     try {
-      let updatedFavs: string[];
-      if (favorites.includes(channelId)) {
-        updatedFavs = favorites.filter((id) => id !== channelId);
-      } else {
-        updatedFavs = [...favorites, channelId];
-      }
-      setFavorites(updatedFavs);
-      await AsyncStorage.setItem(STORAGE_FAVS, JSON.stringify(updatedFavs));
+      let updated = favorites.includes(channelId)
+        ? favorites.filter((id) => id !== channelId)
+        : [...favorites, channelId];
+      setFavorites(updated);
+      await AsyncStorage.setItem(STORAGE_FAVS, JSON.stringify(updated));
     } catch (e) {
-      console.error("Favori kaydedilemedi:", e);
+      console.error(e);
     }
   };
 
@@ -143,6 +225,15 @@ export default function App() {
     }
   };
 
+  const cleanUrl = (url: string) => {
+    let clean = url.trim().replace(/\s+/g, "").replace(/\/+$/, "");
+    if (clean.startsWith("https://"))
+      clean = clean.replace("https://", "http://");
+    if (!clean.startsWith("http://")) clean = `http://${clean}`;
+    return clean;
+  };
+
+  // Sadece Canlı Yayınları Yükler (Sistemi Yormaz ve Kesintisizdir)
   const fetchXtreamData = async (
     server: string,
     user: string,
@@ -150,144 +241,205 @@ export default function App() {
   ) => {
     try {
       setLoading(true);
+      setMoviesLoaded(false);
+      setSeriesLoaded(false);
 
-      let cleanServer = server.trim().replace(/\s+/g, "").replace(/\/+$/, "");
+      const cleanServer = cleanUrl(server);
       const cleanUser = user.trim().replace(/\s+/g, "");
       const cleanPass = pass.trim().replace(/\s+/g, "");
 
-      if (cleanServer.startsWith("https://")) {
-        cleanServer = cleanServer.replace("https://", "http://");
-      }
-      if (!cleanServer.startsWith("http://")) {
-        cleanServer = `http://${cleanServer}`;
-      }
+      const headers = { "User-Agent": "IPTVSmartersPro/3.1.5", Accept: "*/*" };
 
-      const categoriesUrl = `${cleanServer}/player_api.php?username=${cleanUser}&password=${cleanPass}&action=get_live_categories`;
-      const streamUrl = `${cleanServer}/player_api.php?username=${cleanUser}&password=${cleanPass}&action=get_live_streams`;
+      const catRes = await fetch(
+        `${cleanServer}/player_api.php?username=${cleanUser}&password=${cleanPass}&action=get_live_categories`,
+        { headers },
+      );
+      const catData = catRes.ok ? await catRes.json() : [];
 
-      // Zaman aşımını 45 saniyeye çıkarıyoruz
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const streamRes = await fetch(
+        `${cleanServer}/player_api.php?username=${cleanUser}&password=${cleanPass}&action=get_live_streams`,
+        { headers },
+      );
 
-      const requestHeaders = {
-        "User-Agent": "IPTVSmartersPro/3.1.5",
-        Accept: "*/*",
-      };
-
-      // 1. Kategorileri Çek
-      let catData: any[] = [];
-      try {
-        const catRes = await fetch(categoriesUrl, {
-          method: "GET",
-          headers: requestHeaders,
-          signal: controller.signal,
-        });
-        if (catRes.ok) catData = await catRes.json();
-      } catch (e) {
-        console.warn("Kategoriler alınamadı, varsayılan mod devam ediyor:", e);
-      }
-
-      // 2. Kanalları Çek
-      const streamRes = await fetch(streamUrl, {
-        method: "GET",
-        headers: {
-          "User-Agent": "IPTVSmartersPro/3.1.5",
-          Accept: "*/*",
-          Connection: "keep-alive",
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!streamRes.ok) {
-        throw new Error(`Sunucu Yanıtı: ${streamRes.status}`);
-      }
-
-      const streamData = await streamRes.json();
-
-      if (Array.isArray(streamData)) {
-        if (streamData.length === 0) {
-          alert("Kullanıcı bilgileri doğru fakat kanal bulunamadı.");
-          return;
-        }
-
-        // Kategori ID -> Kategori Adı
-        const categoryMap: { [key: string]: string } = {};
-        if (Array.isArray(catData)) {
-          catData.forEach((c: any) => {
-            categoryMap[c.category_id] = c.category_name;
-          });
-        }
-
-        // "LIVE | " temizliği ve kategori adı eşleme
-        const enrichedStreamData = streamData.map((item: any) => ({
-          ...item,
-          name: item.name
-            ? item.name.replace(/^LIVE\s*[:|-]?\s*/i, "").trim()
-            : item.name,
-          category_name: categoryMap[item.category_id] || "Diğer",
-        }));
-
-        const parsed = parseXtreamChannels(
-          enrichedStreamData,
-          cleanServer,
-          cleanUser,
-          cleanPass,
-        );
-
-        setAllChannels(parsed);
-        setFilteredChannels(parsed);
-
-        // Kategori Menüsü
-        const generatedCategories: Category[] = [
-          { category_id: "all", category_name: "🌐 TÜM KANALLAR" },
-          { category_id: "favorites", category_name: "⭐ FAVORİLER" },
-        ];
-
-        if (Array.isArray(catData) && catData.length > 0) {
-          catData.forEach((c: any) => {
-            generatedCategories.push({
-              category_id: c.category_name,
-              category_name: c.category_name,
+      if (streamRes.ok) {
+        const streamData = await streamRes.json();
+        if (Array.isArray(streamData)) {
+          const categoryMap: { [key: string]: string } = {};
+          if (Array.isArray(catData)) {
+            catData.forEach((c: any) => {
+              categoryMap[c.category_id] = c.category_name;
             });
-          });
-        } else {
-          // Kategoriler çekilemezse kanalların grubundan üret
-          const uniqueGroups = new Set<string>();
-          parsed.forEach((ch) => {
-            if (ch.group) uniqueGroups.add(ch.group);
-          });
-          Array.from(uniqueGroups)
-            .sort()
-            .forEach((grp) => {
-              generatedCategories.push({
-                category_id: grp,
-                category_name: grp,
-              });
-            });
-        }
+          }
 
-        setCategories(generatedCategories);
+          const enriched = streamData.map((item: any) => ({
+            ...item,
+            name: item.name
+              ? item.name.replace(/^LIVE\s*[:|-]?\s*/i, "").trim()
+              : item.name,
+            category_name: categoryMap[item.category_id] || "Diğer",
+          }));
 
-        if (parsed.length > 0) {
-          setSelectedChannel(parsed[0]);
+          const parsed = parseXtreamChannels(
+            enriched,
+            cleanServer,
+            cleanUser,
+            cleanPass,
+          );
+          setAllChannels(parsed);
+          setFilteredChannels(parsed);
+          if (parsed.length > 0) setSelectedChannel(parsed[0]);
+
+          const generatedCats: Category[] = [
+            { category_id: "all", category_name: "🌐 TÜM KANALLAR" },
+            { category_id: "favorites", category_name: "⭐ FAVORİLER" },
+          ];
+          if (Array.isArray(catData)) {
+            catData.forEach((c: any) =>
+              generatedCats.push({
+                category_id: c.category_name,
+                category_name: c.category_name,
+              }),
+            );
+          }
+          setCategories(generatedCats);
         }
-      } else {
-        alert("Sunucu geçersiz yanıt döndürdü.");
       }
     } catch (error: any) {
-      console.error("Xtream Fetch Hatası:", error);
-      if (error.name === "AbortError") {
-        alert(
-          "Bağlantı zaman aşımına uğradı (45s). Sunucu çok yavaş yanıt veriyor.",
-        );
-      } else {
-        alert(`Kanallar yüklenemedi: ${error?.message || "Ağ Hatası"}`);
-      }
+      alert(`Hata: ${error?.message || "Canlı TV verileri alınamadı"}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Filmler Sekmesine Girilince Çalışır
+  const fetchMovieData = async () => {
+    if (moviesLoaded || moviesLoading) return;
+    try {
+      setMoviesLoading(true);
+      const cleanServer = cleanUrl(serverInput);
+      const headers = { "User-Agent": "IPTVSmartersPro/3.1.5", Accept: "*/*" };
+
+      const vCat = await fetch(
+        `${cleanServer}/player_api.php?username=${userInput.trim()}&password=${passInput.trim()}&action=get_vod_categories`,
+        { headers },
+      );
+      const vCatData = vCat.ok ? await vCat.json() : [];
+
+      const vStreams = await fetch(
+        `${cleanServer}/player_api.php?username=${userInput.trim()}&password=${passInput.trim()}&action=get_vod_streams`,
+        { headers },
+      );
+
+      if (vStreams.ok) {
+        const vData = await vStreams.json();
+        if (Array.isArray(vData)) {
+          setAllMovies(vData);
+          setFilteredMovies(vData);
+          const generated: Category[] = [
+            { category_id: "all", category_name: "🎬 TÜM FİLMLER" },
+          ];
+          if (Array.isArray(vCatData)) {
+            vCatData.forEach((c: any) =>
+              generated.push({
+                category_id: c.category_id,
+                category_name: c.category_name,
+              }),
+            );
+          }
+          setMovieCategories(generated);
+          setMoviesLoaded(true);
+        }
+      }
+    } catch (e) {
+      console.warn("Movies hatası:", e);
+    } finally {
+      setMoviesLoading(false);
+    }
+  };
+
+  // Diziler Sekmesine Girilince Çalışır
+  const fetchSeriesData = async () => {
+    if (seriesLoaded || seriesLoading) return;
+    try {
+      setSeriesLoading(true);
+      const cleanServer = cleanUrl(serverInput);
+      const headers = { "User-Agent": "IPTVSmartersPro/3.1.5", Accept: "*/*" };
+
+      const sCat = await fetch(
+        `${cleanServer}/player_api.php?username=${userInput.trim()}&password=${passInput.trim()}&action=get_series_categories`,
+        { headers },
+      );
+      const sCatData = sCat.ok ? await sCat.json() : [];
+
+      const sRes = await fetch(
+        `${cleanServer}/player_api.php?username=${userInput.trim()}&password=${passInput.trim()}&action=get_series`,
+        { headers },
+      );
+
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (Array.isArray(sData)) {
+          setAllSeries(sData);
+          setFilteredSeries(sData);
+          const generated: Category[] = [
+            { category_id: "all", category_name: "🍿 TÜM DİZİLER" },
+          ];
+          if (Array.isArray(sCatData)) {
+            sCatData.forEach((c: any) =>
+              generated.push({
+                category_id: c.category_id,
+                category_name: c.category_name,
+              }),
+            );
+          }
+          setSeriesCategories(generated);
+          setSeriesLoaded(true);
+        }
+      }
+    } catch (e) {
+      console.warn("Series hatası:", e);
+    } finally {
+      setSeriesLoading(false);
+    }
+  };
+
+  const fetchSeriesEpisodes = async (seriesId: number) => {
+    try {
+      setSeriesLoading(true);
+      const cleanServer = cleanUrl(serverInput);
+
+      const res = await fetch(
+        `${cleanServer}/player_api.php?username=${userInput.trim()}&password=${passInput.trim()}&action=get_series_info&series_id=${seriesId}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.episodes) {
+          setEpisodes(data.episodes);
+          const seasons = Object.keys(data.episodes);
+          if (seasons.length > 0) setSelectedSeason(seasons[0]);
+        }
+      }
+    } catch (e) {
+      alert("Bölümler yüklenemedi.");
+    } finally {
+      setSeriesLoading(false);
+    }
+  };
+
+  const playMovie = (movie: VodItem) => {
+    const cleanServer = cleanUrl(serverInput);
+    const ext = movie.container_extension || "mp4";
+    const url = `${cleanServer}/movie/${userInput.trim()}/${passInput.trim()}/${movie.stream_id}.${ext}`;
+    setActiveMediaUrl(url);
+    setIsFullscreen(true);
+  };
+
+  const playEpisode = (episode: Episode) => {
+    const cleanServer = cleanUrl(serverInput);
+    const ext = episode.container_extension || "mp4";
+    const url = `${cleanServer}/series/${userInput.trim()}/${passInput.trim()}/${episode.id}.${ext}`;
+    setActiveMediaUrl(url);
+    setIsFullscreen(true);
   };
 
   const handleSaveCredentials = async () => {
@@ -303,325 +455,1012 @@ export default function App() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#FFD700" />
-        <Text style={styles.loadingText}>Kanallar Yükleniyor...</Text>
+        <Text style={styles.loadingText}>Yayınlar Yükleniyor...</Text>
       </View>
     );
   }
 
+  // --- EKRAN 1: DASHBOARD ---
+  if (currentScreen === "dashboard") {
+    return (
+      <View style={styles.dashboardContainer}>
+        <View style={styles.dashHeader}>
+          <View style={styles.brandRow}>
+            <Text style={styles.dashTitle}>BİLO IPTV PLAYER</Text>
+            <Text style={styles.dashSubtitle}> | Premium Edition</Text>
+          </View>
+          <View style={styles.dashHeaderRight}>
+            <Text style={styles.userInfo}>👤 {userInput}</Text>
+            <Pressable
+              style={({ focused }: any) => [
+                styles.settingsBtn,
+                focused && styles.focusedBtn,
+              ]}
+              focusable={true}
+              onPress={() => setIsModalOpen(true)}
+            >
+              <Text style={styles.settingsBtnText}>⚙️ Ayarlar</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.cardsContainer}>
+          <Pressable
+            style={({ focused }: any) => [
+              styles.dashCard,
+              styles.liveCard,
+              focused && styles.dashCardFocused,
+            ]}
+            focusable={true}
+            hasTVPreferredFocus={true}
+            onPress={() => {
+              setSearchQuery("");
+              setCurrentScreen("live");
+            }}
+          >
+            <Text style={styles.cardIcon}>📺</Text>
+            <Text style={styles.cardTitle}>LIVE TV</Text>
+            <Text style={styles.cardCount}>{allChannels.length} Kanal</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ focused }: any) => [
+              styles.dashCard,
+              styles.moviesCard,
+              focused && styles.dashCardFocused,
+            ]}
+            focusable={true}
+            onPress={() => {
+              setSearchQuery("");
+              setCurrentScreen("movies");
+              fetchMovieData();
+            }}
+          >
+            <Text style={styles.cardIcon}>🎬</Text>
+            <Text style={styles.cardTitle}>MOVIES</Text>
+            <Text style={styles.cardCount}>
+              {moviesLoading ? "Yükleniyor..." : `${allMovies.length} Film`}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={({ focused }: any) => [
+              styles.dashCard,
+              styles.seriesCard,
+              focused && styles.dashCardFocused,
+            ]}
+            focusable={true}
+            onPress={() => {
+              setSearchQuery("");
+              setCurrentScreen("series");
+              fetchSeriesData();
+            }}
+          >
+            <Text style={styles.cardIcon}>🍿</Text>
+            <Text style={styles.cardTitle}>SERIES</Text>
+            <Text style={styles.cardCount}>
+              {seriesLoading && !seriesLoaded
+                ? "Yükleniyor..."
+                : `${allSeries.length} Dizi`}
+            </Text>
+          </Pressable>
+        </View>
+
+        <Modal visible={isModalOpen} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Xtream Codes Girişi</Text>
+              <TextInput
+                style={styles.input}
+                value={serverInput}
+                onChangeText={setServerInput}
+                placeholder="Server URL"
+                placeholderTextColor="#888"
+              />
+              <TextInput
+                style={styles.input}
+                value={userInput}
+                onChangeText={setUserInput}
+                placeholder="Kullanıcı Adı"
+                placeholderTextColor="#888"
+              />
+              <TextInput
+                style={styles.input}
+                value={passInput}
+                onChangeText={setPassInput}
+                placeholder="Şifre"
+                secureTextEntry
+                placeholderTextColor="#888"
+              />
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={[styles.btn, styles.saveBtn]}
+                  focusable={true}
+                  onPress={handleSaveCredentials}
+                >
+                  <Text style={styles.btnText}>Kaydet</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.btn, styles.cancelBtn]}
+                  focusable={true}
+                  onPress={() => setIsModalOpen(false)}
+                >
+                  <Text style={styles.btnText}>İptal</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
+  // --- EKRAN 2: MOVIES EKRANI ---
+  if (currentScreen === "movies") {
+    return (
+      <View style={styles.container}>
+        <View style={styles.categoryContainer}>
+          <View style={styles.headerRow}>
+            <Pressable
+              style={({ focused }: any) => [
+                styles.backBtn,
+                focused && styles.focusedBtn,
+              ]}
+              focusable={true}
+              onPress={() => {
+                setSelectedMovie(null);
+                setCurrentScreen("dashboard");
+              }}
+            >
+              <Text style={styles.settingsBtnText}>⬅ Ana Menü</Text>
+            </Pressable>
+          </View>
+          {moviesLoading ? (
+            <ActivityIndicator
+              size="small"
+              color="#FFD700"
+              style={{ marginTop: 20 }}
+            />
+          ) : (
+            <FlatList
+              data={movieCategories}
+              keyExtractor={(item) => item.category_id}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.categoryCard,
+                    selectedMovieCatId === item.category_id &&
+                      styles.selectedCategoryCard,
+                    focusedId === `mcat_${item.category_id}` &&
+                      styles.focusedCard,
+                  ]}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`mcat_${item.category_id}`)}
+                  onPress={() => setSelectedMovieCatId(item.category_id)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      selectedMovieCatId === item.category_id &&
+                        styles.selectedCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.category_name}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+
+        <View style={styles.channelContainer}>
+          <Text style={styles.headerTitle}>
+            Filmler ({filteredMovies.length})
+          </Text>
+          <TextInput
+            style={[
+              styles.searchInput,
+              focusedId === "m_search" && styles.focusedCard,
+            ]}
+            placeholder="🔍 Film Ara..."
+            placeholderTextColor="#777"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setFocusedId("m_search")}
+          />
+          {moviesLoading ? (
+            <ActivityIndicator
+              size="large"
+              color="#FFD700"
+              style={{ marginTop: 40 }}
+            />
+          ) : (
+            <FlatList
+              data={filteredMovies}
+              keyExtractor={(item) => item.stream_id.toString()}
+              numColumns={2}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.movieGridCard,
+                    focusedId === `mov_${item.stream_id}` && styles.focusedCard,
+                  ]}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`mov_${item.stream_id}`)}
+                  onPress={() => setSelectedMovie(item)}
+                >
+                  {item.stream_icon ? (
+                    <Image
+                      source={{ uri: item.stream_icon }}
+                      style={styles.posterImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.posterImage, styles.noLogo]}>
+                      <Text style={styles.noLogoText}>🎬</Text>
+                    </View>
+                  )}
+                  <Text style={styles.movieGridTitle} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+
+        <View style={styles.playerContainer}>
+          {selectedMovie ? (
+            <View style={styles.movieDetailContainer}>
+              {selectedMovie.stream_icon && (
+                <Image
+                  source={{ uri: selectedMovie.stream_icon }}
+                  style={styles.detailPoster}
+                  resizeMode="contain"
+                />
+              )}
+              <Text style={styles.detailTitle}>{selectedMovie.name}</Text>
+              <Pressable
+                style={({ focused }: any) => [
+                  styles.playBtn,
+                  focused && styles.focusedBtn,
+                ]}
+                focusable={true}
+                onPress={() => playMovie(selectedMovie)}
+              >
+                <Text style={styles.playBtnText}>▶ Filmi Başlat</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.placeholderText}>Detay için film seçin</Text>
+          )}
+        </View>
+
+        {isFullscreen && activeMediaUrl && (
+          <View style={styles.fullPlayerContainer}>
+            <Video
+              source={{ uri: activeMediaUrl }}
+              style={styles.fullVideo}
+              controls={true}
+              resizeMode="contain"
+              onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
+              onLoad={() => setIsVideoLoading(false)}
+              onError={() => alert("Film açılırken hata oluştu.")}
+            />
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // --- EKRAN 3: SERIES EKRANI ---
+  if (currentScreen === "series") {
+    return (
+      <View style={styles.container}>
+        <View style={styles.categoryContainer}>
+          <View style={styles.headerRow}>
+            <Pressable
+              style={({ focused }: any) => [
+                styles.backBtn,
+                focused && styles.focusedBtn,
+              ]}
+              focusable={true}
+              onPress={() => {
+                setSelectedSeries(null);
+                setCurrentScreen("dashboard");
+              }}
+            >
+              <Text style={styles.settingsBtnText}>⬅ Ana Menü</Text>
+            </Pressable>
+          </View>
+          {seriesLoading && !seriesLoaded ? (
+            <ActivityIndicator
+              size="small"
+              color="#FFD700"
+              style={{ marginTop: 20 }}
+            />
+          ) : (
+            <FlatList
+              data={seriesCategories}
+              keyExtractor={(item) => item.category_id}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.categoryCard,
+                    selectedSeriesCatId === item.category_id &&
+                      styles.selectedCategoryCard,
+                    focusedId === `scat_${item.category_id}` &&
+                      styles.focusedCard,
+                  ]}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`scat_${item.category_id}`)}
+                  onPress={() => setSelectedSeriesCatId(item.category_id)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      selectedSeriesCatId === item.category_id &&
+                        styles.selectedCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.category_name}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+
+        {!selectedSeries ? (
+          <View style={{ flex: 1, padding: 8 }}>
+            <Text style={styles.headerTitle}>
+              Diziler ({filteredSeries.length})
+            </Text>
+            <TextInput
+              style={[
+                styles.searchInput,
+                focusedId === "s_search" && styles.focusedCard,
+              ]}
+              placeholder="🔍 Dizi Ara..."
+              placeholderTextColor="#777"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setFocusedId("s_search")}
+            />
+            {seriesLoading && !seriesLoaded ? (
+              <ActivityIndicator
+                size="large"
+                color="#FFD700"
+                style={{ marginTop: 40 }}
+              />
+            ) : (
+              <FlatList
+                data={filteredSeries}
+                keyExtractor={(item) => item.series_id.toString()}
+                numColumns={4}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={[
+                      styles.movieGridCard,
+                      { width: "23%" },
+                      focusedId === `ser_${item.series_id}` &&
+                        styles.focusedCard,
+                    ]}
+                    focusable={true}
+                    onFocus={() => setFocusedId(`ser_${item.series_id}`)}
+                    onPress={() => {
+                      setSelectedSeries(item);
+                      fetchSeriesEpisodes(item.series_id);
+                    }}
+                  >
+                    {item.cover ? (
+                      <Image
+                        source={{ uri: item.cover }}
+                        style={styles.posterImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.posterImage, styles.noLogo]}>
+                        <Text style={styles.noLogoText}>🍿</Text>
+                      </View>
+                    )}
+                    <Text style={styles.movieGridTitle} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+            )}
+          </View>
+        ) : (
+          <View style={{ flex: 1, flexDirection: "row", padding: 8 }}>
+            {/* Sezon ve Bölüm Seçim Ekranı */}
+            <View style={{ width: "35%", paddingRight: 8 }}>
+              <Pressable
+                style={[styles.backBtn, { marginBottom: 10 }]}
+                focusable={true}
+                onPress={() => setSelectedSeries(null)}
+              >
+                <Text style={styles.settingsBtnText}>⬅ Dizi Listesine Dön</Text>
+              </Pressable>
+              <Text style={styles.detailTitle}>{selectedSeries.name}</Text>
+              {seriesLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color="#FFD700"
+                  style={{ marginTop: 20 }}
+                />
+              ) : (
+                <ScrollView style={{ marginTop: 10 }}>
+                  <Text
+                    style={{
+                      color: "#FFD700",
+                      fontWeight: "bold",
+                      marginBottom: 6,
+                    }}
+                  >
+                    SEZONLAR:
+                  </Text>
+                  {Object.keys(episodes).map((seasonKey) => (
+                    <Pressable
+                      key={seasonKey}
+                      style={[
+                        styles.categoryCard,
+                        selectedSeason === seasonKey &&
+                          styles.selectedCategoryCard,
+                      ]}
+                      focusable={true}
+                      onPress={() => setSelectedSeason(seasonKey)}
+                    >
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>
+                        Sezon {seasonKey}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+
+            {/* Bölümler */}
+            <View style={{ width: "65%", paddingLeft: 8 }}>
+              <Text
+                style={{
+                  color: "#FFD700",
+                  fontWeight: "bold",
+                  marginBottom: 10,
+                }}
+              >
+                BÖLÜMLER:
+              </Text>
+              {selectedSeason && episodes[selectedSeason] ? (
+                <FlatList
+                  data={episodes[selectedSeason]}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={({ focused }: any) => [
+                        styles.channelCard,
+                        focused && styles.focusedCard,
+                      ]}
+                      focusable={true}
+                      onPress={() => playEpisode(item)}
+                    >
+                      <Text style={{ color: "#FFF", fontSize: 13 }}>
+                        ▶ Bölüm {item.episode_num}: {item.title}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+              ) : (
+                <Text style={{ color: "#666" }}>Bölüm bulunamadı.</Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {isFullscreen && activeMediaUrl && (
+          <View style={styles.fullPlayerContainer}>
+            <Video
+              source={{ uri: activeMediaUrl }}
+              style={styles.fullVideo}
+              controls={true}
+              resizeMode="contain"
+              onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
+              onLoad={() => setIsVideoLoading(false)}
+              onError={() => alert("Bölüm oynatılamadı.")}
+            />
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // --- EKRAN 4: CANLI TV EKRANI ---
   return (
     <View style={styles.container}>
       {!isFullscreen && (
         <>
-          {/* Sol Sütun: Kategoriler */}
           <View style={styles.categoryContainer}>
             <View style={styles.headerRow}>
-              <Text style={styles.headerTitle}>Kategoriler</Text>
               <Pressable
                 style={({ focused }: any) => [
-                  styles.settingsBtn,
+                  styles.backBtn,
                   focused && styles.focusedBtn,
                 ]}
                 focusable={true}
-                onPress={() => setIsModalOpen(true)}
+                onPress={() => setCurrentScreen("dashboard")}
               >
-                <Text style={styles.settingsBtnText}>⚙️</Text>
+                <Text style={styles.settingsBtnText}>⬅ Ana Menü</Text>
               </Pressable>
             </View>
             <FlatList
               data={categories}
               keyExtractor={(item) => item.category_id}
-              renderItem={({ item }) => {
-                const isSelected = selectedCategoryId === item.category_id;
-                const isFocused = focusedId === `cat_${item.category_id}`;
-                return (
-                  <Pressable
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.categoryCard,
+                    selectedCategoryId === item.category_id &&
+                      styles.selectedCategoryCard,
+                    focusedId === `cat_${item.category_id}` &&
+                      styles.focusedCard,
+                  ]}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`cat_${item.category_id}`)}
+                  onPress={() => setSelectedCategoryId(item.category_id)}
+                >
+                  <Text
                     style={[
-                      styles.categoryCard,
-                      isSelected && styles.selectedCategoryCard,
-                      isFocused && styles.focusedCard,
+                      styles.categoryText,
+                      selectedCategoryId === item.category_id &&
+                        styles.selectedCategoryText,
                     ]}
-                    focusable={true}
-                    hasTVPreferredFocus={item.category_id === "all"}
-                    onFocus={() => setFocusedId(`cat_${item.category_id}`)}
-                    onPress={() => setSelectedCategoryId(item.category_id)}
+                    numberOfLines={1}
                   >
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        isSelected && styles.selectedCategoryText,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {item.category_name}
-                    </Text>
-                  </Pressable>
-                );
-              }}
+                    {item.category_name}
+                  </Text>
+                </Pressable>
+              )}
             />
           </View>
 
-          {/* Orta Sütun: Arama Çubuğu & Kanal Listesi */}
           <View style={styles.channelContainer}>
             <Text style={styles.headerTitle}>
               Kanallar ({filteredChannels.length})
             </Text>
-
-            {/* Arama Kutusu */}
             <TextInput
               style={[
                 styles.searchInput,
-                focusedId === "search_input" && styles.focusedCard,
+                focusedId === "live_search" && styles.focusedCard,
               ]}
               placeholder="🔍 Kanal Ara..."
               placeholderTextColor="#777"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              onFocus={() => setFocusedId("search_input")}
+              onFocus={() => setFocusedId("live_search")}
             />
-
             <FlatList
               data={filteredChannels}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const isPlaying = selectedChannel?.id === item.id;
-                const isFocused = focusedId === `ch_${item.id}`;
-                const isFav = favorites.includes(item.id);
-
-                return (
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[
+                    styles.channelCard,
+                    selectedChannel?.id === item.id &&
+                      styles.selectedChannelCard,
+                    focusedId === `chan_${item.id}` && styles.focusedCard,
+                  ]}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`chan_${item.id}`)}
+                  onPress={() => {
+                    setSelectedChannel(item);
+                    setVideoError(null);
+                  }}
+                >
+                  {item.logo ? (
+                    <Image
+                      source={{ uri: item.logo }}
+                      style={styles.channelLogo}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={[styles.channelLogo, styles.noLogo]}>
+                      <Text style={styles.noLogoText}>📺</Text>
+                    </View>
+                  )}
+                  <Text style={styles.channelText} numberOfLines={1}>
+                    {item.name}
+                  </Text>
                   <Pressable
-                    style={[
-                      styles.channelCard,
-                      isPlaying && styles.playingCard,
-                      isFocused && styles.focusedCard,
-                    ]}
-                    focusable={true}
-                    onFocus={() => setFocusedId(`ch_${item.id}`)}
-                    onPress={() => {
-                      if (selectedChannel?.id === item.id) {
-                        setIsFullscreen(true);
-                      } else {
-                        setVideoError(null);
-                        setIsVideoLoading(true);
-                        setSelectedChannel(item);
-                      }
-                    }}
+                    style={styles.favBtn}
+                    onPress={() => toggleFavorite(item.id)}
                   >
-                    {item.logo ? (
-                      <Image
-                        source={{ uri: item.logo }}
-                        style={styles.logo}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <View style={[styles.logo, styles.noLogo]}>
-                        <Text style={styles.noLogoText}>TV</Text>
-                      </View>
-                    )}
-                    <Text style={styles.channelName} numberOfLines={1}>
-                      {isPlaying ? `▶ ${item.name}` : item.name}
+                    <Text style={styles.favText}>
+                      {favorites.includes(item.id) ? "★" : "☆"}
                     </Text>
-
-                    {/* Favori Yıldız Butonu */}
-                    <Pressable
-                      style={styles.favButton}
-                      focusable={true}
-                      onPress={() => toggleFavorite(item.id)}
-                    >
-                      <Text style={styles.favText}>{isFav ? "⭐" : "☆"}</Text>
-                    </Pressable>
                   </Pressable>
-                );
-              }}
+                </Pressable>
+              )}
             />
           </View>
         </>
       )}
 
-      {/* Sağ Sütun: Video Player */}
+      {/* Oynatıcı Alanı */}
       <View
-        style={
-          isFullscreen ? styles.fullPlayerContainer : styles.playerContainer
-        }
+        style={[
+          styles.playerContainer,
+          isFullscreen && styles.fullPlayerContainer,
+        ]}
       >
         {selectedChannel ? (
-          <Pressable
-            style={styles.videoWrapper}
-            focusable={true}
-            onPress={() => setIsFullscreen(!isFullscreen)}
-          >
+          <View style={styles.videoWrapper}>
             <Video
               source={{ uri: selectedChannel.url }}
-              style={styles.fullVideo}
-              controls={false}
-              resizeMode={isFullscreen ? "cover" : "contain"}
+              style={styles.video}
+              controls={isFullscreen}
+              resizeMode="contain"
               onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
-              onLoad={() => setIsVideoLoading(false)}
-              onError={() => {
+              onLoad={() => {
                 setIsVideoLoading(false);
-                setVideoError("Yayın kapalı veya desteklenmeyen format.");
+                setVideoError(null);
+              }}
+              onError={(e) => {
+                console.log("Video Hatası:", e);
+                setVideoError("Yayın açılamıyor veya format desteklenmiyor.");
+                setIsVideoLoading(false);
               }}
             />
             {isVideoLoading && (
-              <View style={styles.overlay}>
+              <View style={styles.videoOverlay}>
                 <ActivityIndicator size="large" color="#FFD700" />
+                <Text style={styles.loadingText}>Yayın Yükleniyor...</Text>
               </View>
             )}
             {videoError && (
-              <View style={styles.overlay}>
-                <Text style={styles.errorText}>⚠️ {videoError}</Text>
+              <View style={styles.videoOverlay}>
+                <Text style={styles.errorText}>{videoError}</Text>
               </View>
             )}
-          </Pressable>
+            {!isFullscreen && (
+              <Pressable
+                style={({ focused }: any) => [
+                  styles.fullscreenBtn,
+                  focused && styles.focusedBtn,
+                ]}
+                focusable={true}
+                onPress={() => setIsFullscreen(true)}
+              >
+                <Text style={styles.fullscreenBtnText}>⛶ Tam Ekran</Text>
+              </Pressable>
+            )}
+          </View>
         ) : (
-          <Text style={styles.placeholderText}>Kanal Seçin</Text>
+          <Text style={styles.placeholderText}>Lütfen bir kanal seçin</Text>
         )}
       </View>
-
-      {/* Giriş Modalı */}
-      <Modal visible={isModalOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Xtream Codes Girişi</Text>
-            <TextInput
-              style={styles.input}
-              value={serverInput}
-              onChangeText={setServerInput}
-              placeholder="Server URL"
-              placeholderTextColor="#888"
-            />
-            <TextInput
-              style={styles.input}
-              value={userInput}
-              onChangeText={setUserInput}
-              placeholder="Kullanıcı Adı"
-              placeholderTextColor="#888"
-            />
-            <TextInput
-              style={styles.input}
-              value={passInput}
-              onChangeText={setPassInput}
-              placeholder="Şifre"
-              secureTextEntry
-              placeholderTextColor="#888"
-            />
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[styles.btn, styles.saveBtn]}
-                focusable={true}
-                onPress={handleSaveCredentials}
-              >
-                <Text style={styles.btnText}>Kaydet</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.btn, styles.cancelBtn]}
-                focusable={true}
-                onPress={() => setIsModalOpen(false)}
-              >
-                <Text style={styles.btnText}>İptal</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: "row", backgroundColor: "#121212" },
-  centerContainer: {
+  container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: "row",
     backgroundColor: "#121212",
   },
-  loadingText: { color: "#FFF", marginTop: 10 },
-  categoryContainer: { width: "22%", backgroundColor: "#1A1A1A", padding: 8 },
-  channelContainer: { width: "28%", backgroundColor: "#222222", padding: 8 },
-  playerContainer: {
-    width: "50%",
-    height: "100%",
-    backgroundColor: "#000",
+  centerContainer: {
+    flex: 1,
+    backgroundColor: "#121212",
     justifyContent: "center",
     alignItems: "center",
   },
-  fullPlayerContainer: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#000",
+  loadingText: {
+    color: "#FFF",
+    marginTop: 10,
+    fontSize: 16,
+  },
+  dashboardContainer: {
+    flex: 1,
+    backgroundColor: "#0d0f12",
+    padding: 20,
+    justifyContent: "center",
+  },
+  dashHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  dashTitle: {
+    color: "#FFD700",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  dashSubtitle: {
+    color: "#888",
+    fontSize: 14,
+  },
+  dashHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  userInfo: {
+    color: "#FFF",
+    marginRight: 15,
+    fontSize: 14,
+  },
+  settingsBtn: {
+    backgroundColor: "#222",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#444",
+  },
+  settingsBtnText: {
+    color: "#FFF",
+    fontSize: 12,
+  },
+  backBtn: {
+    backgroundColor: "#222",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  cardsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  dashCard: {
+    flex: 1,
+    height: 180,
+    marginHorizontal: 8,
+    borderRadius: 12,
+    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  liveCard: {
+    backgroundColor: "#1e293b",
+  },
+  moviesCard: {
+    backgroundColor: "#311b92",
+  },
+  seriesCard: {
+    backgroundColor: "#880e4f",
+  },
+  dashCardFocused: {
+    borderColor: "#FFD700",
+    transform: [{ scale: 1.03 }],
+  },
+  cardIcon: {
+    fontSize: 40,
+    marginBottom: 10,
+  },
+  cardTitle: {
+    color: "#FFF",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  cardCount: {
+    color: "#AAA",
+    fontSize: 12,
+    marginTop: 5,
+  },
+  categoryContainer: {
+    width: "25%",
+    borderRightWidth: 1,
+    borderColor: "#222",
+    padding: 8,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+  },
+  categoryCard: {
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 4,
+    backgroundColor: "#1a1a1a",
+  },
+  selectedCategoryCard: {
+    backgroundColor: "#333",
+    borderLeftWidth: 4,
+    borderLeftColor: "#FFD700",
+  },
+  categoryText: {
+    color: "#AAA",
+    fontSize: 13,
+  },
+  selectedCategoryText: {
+    color: "#FFF",
+    fontWeight: "bold",
+  },
+  channelContainer: {
+    width: "35%",
+    borderRightWidth: 1,
+    borderColor: "#222",
+    padding: 8,
   },
   headerTitle: {
     color: "#FFD700",
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: "bold",
-    marginBottom: 6,
-  },
-  settingsBtn: { backgroundColor: "#333", padding: 4, borderRadius: 4 },
-  settingsBtnText: { color: "#FFF", fontSize: 12 },
-  searchInput: {
-    backgroundColor: "#111",
-    color: "#FFF",
-    padding: 6,
-    borderRadius: 6,
-    fontSize: 12,
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#444",
   },
-  categoryCard: {
-    padding: 8,
+  searchInput: {
+    backgroundColor: "#222",
+    color: "#FFF",
     borderRadius: 6,
-    backgroundColor: "#282828",
-    marginBottom: 4,
-    borderWidth: 1.5,
-    borderColor: "transparent",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+    fontSize: 13,
   },
-  selectedCategoryCard: { backgroundColor: "#3A3A88", borderColor: "#8888FF" },
-  categoryText: { color: "#AAA", fontSize: 12, fontWeight: "500" },
-  selectedCategoryText: { color: "#FFF", fontWeight: "bold" },
   channelCard: {
     flexDirection: "row",
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: "#2D2D2D",
-    marginBottom: 4,
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "transparent",
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 4,
+    backgroundColor: "#1a1a1a",
   },
-  playingCard: { backgroundColor: "#1B3B1B", borderColor: "#00FF66" },
+  selectedChannelCard: {
+    backgroundColor: "#2a2a2a",
+    borderColor: "#FFD700",
+    borderWidth: 1,
+  },
+  channelLogo: {
+    width: 30,
+    height: 30,
+    marginRight: 10,
+    borderRadius: 4,
+  },
+  noLogo: {
+    backgroundColor: "#333",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noLogoText: {
+    fontSize: 14,
+  },
+  channelText: {
+    color: "#FFF",
+    fontSize: 13,
+    flex: 1,
+  },
+  favBtn: {
+    padding: 4,
+  },
+  favText: {
+    color: "#FFD700",
+    fontSize: 16,
+  },
+  playerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  fullPlayerContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    backgroundColor: "#000",
+  },
+  videoWrapper: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  video: {
+    width: "100%",
+    height: "100%",
+  },
+  fullVideo: {
+    width: "100%",
+    height: "100%",
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#ff5252",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  placeholderText: {
+    color: "#555",
+    fontSize: 14,
+  },
+  fullscreenBtn: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FFF",
+  },
+  fullscreenBtnText: {
+    color: "#FFF",
+    fontSize: 12,
+  },
   focusedCard: {
     borderColor: "#FFD700",
-    backgroundColor: "#3D3D88",
     borderWidth: 2,
-    transform: [{ scale: 1.03 }],
   },
-  logo: { width: 28, height: 28, borderRadius: 4, marginRight: 8 },
-  noLogo: {
-    backgroundColor: "#555",
-    justifyContent: "center",
+  focusedBtn: {
+    borderColor: "#FFD700",
+    borderWidth: 2,
+  },
+  movieGridCard: {
+    width: "48%",
+    margin: "1%",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 8,
+    padding: 6,
     alignItems: "center",
   },
-  noLogoText: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
-  channelName: { color: "#FFF", fontSize: 12, flex: 1 },
-  favButton: { paddingHorizontal: 6, paddingVertical: 2 },
-  favText: { color: "#FFD700", fontSize: 14 },
-  videoWrapper: { width: "100%", height: "100%" },
-  fullVideo: { width: "100%", height: "100%" },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
+  posterImage: {
+    width: "100%",
+    height: 120,
+    borderRadius: 6,
   },
-  errorText: { color: "#FF4444", fontWeight: "bold" },
-  placeholderText: { color: "#666" },
+  movieGridTitle: {
+    color: "#FFF",
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  movieDetailContainer: {
+    alignItems: "center",
+    padding: 20,
+  },
+  detailPoster: {
+    width: 150,
+    height: 220,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  detailTitle: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  playBtn: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  playBtnText: {
+    color: "#000",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -630,42 +1469,49 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: "40%",
-    backgroundColor: "#222",
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: "#1e1e1e",
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#333",
   },
   modalTitle: {
     color: "#FFD700",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 10,
+    marginBottom: 15,
+    textAlign: "center",
   },
   input: {
-    backgroundColor: "#111",
+    backgroundColor: "#2a2a2a",
     color: "#FFF",
-    padding: 8,
     borderRadius: 6,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#444",
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 8,
+    justifyContent: "space-between",
+    marginTop: 10,
   },
   btn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-    marginLeft: 8,
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: "center",
+    marginHorizontal: 4,
   },
-  saveBtn: { backgroundColor: "#28a745" },
-  cancelBtn: { backgroundColor: "#dc3545" },
-  btnText: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
-  focusedBtn: {
-    borderColor: "#FFD700",
-    backgroundColor: "#5555AA",
-    borderWidth: 1.5,
+  saveBtn: {
+    backgroundColor: "#FFD700",
+  },
+  cancelBtn: {
+    backgroundColor: "#444",
+  },
+  btnText: {
+    color: "#000",
+    fontWeight: "bold",
   },
 });
