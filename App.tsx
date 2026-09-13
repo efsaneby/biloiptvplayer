@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet } from "react-native";
+import { View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Ekran Bileşenleri
@@ -20,7 +20,7 @@ import {
   fetchSeriesCategories,
   fetchSeries,
   fetchSeriesInfo,
-  fetchUserInfo, // <-- YENİ EKLENDİ
+  fetchUserInfo,
 } from "./src/utils/m3uParser";
 
 export default function App() {
@@ -34,7 +34,7 @@ export default function App() {
   const [userInput, setUserInput] = useState("demo");
   const [passInput, setPassInput] = useState("demo");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [expDate, setExpDate] = useState<string | null>(null); // <-- YENİ EKLENDİ
+  const [expDate, setExpDate] = useState<string | null>(null);
 
   // Common UI State
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,6 +72,13 @@ export default function App() {
     loadSavedCredentials();
   }, []);
 
+  // Filmler ekranına girildiğinde veri yoksa otomatik çek
+  useEffect(() => {
+    if (currentScreen === "movies" && movies.length === 0 && !moviesLoading) {
+      handleFetchMovies();
+    }
+  }, [currentScreen]);
+
   const loadSavedCredentials = async () => {
     try {
       const s = await AsyncStorage.getItem("@iptv_server");
@@ -98,9 +105,8 @@ export default function App() {
     loadLiveTvData(serverInput, userInput, passInput);
   };
 
-  // Live TV Loader (GÜNCELLENDİ: Kullanıcı Bitiş Tarihi Sorgusu Eklendi)
+  // Live TV Loader
   const loadLiveTvData = async (s: string, u: string, p: string) => {
-    // Son kullanma tarihini al
     const userInfo = await fetchUserInfo(s, u, p);
     if (userInfo && userInfo.exp_date) {
       const timeInMs = parseInt(userInfo.exp_date, 10) * 1000;
@@ -172,14 +178,12 @@ export default function App() {
     setSeriesLoading(false);
   };
 
-  // Favori Ekle/Çıkar
   const toggleFavorite = (id: string) => {
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
-  // Oynatıcı Tetikleyicileri
   const handlePlayMovie = (movie: VodItem) => {
     const url = `${serverInput}/movie/${userInput}/${passInput}/${movie.stream_id}.${movie.container_extension || "mp4"}`;
     setActiveMediaUrl(url);
@@ -192,7 +196,6 @@ export default function App() {
     setIsFullscreen(true);
   };
 
-  // Filtrelenmiş Listeler
   const filteredChannels = channels.filter((c) => {
     const matchCat = selectedCategoryId
       ? c.category_id === selectedCategoryId
@@ -228,7 +231,7 @@ export default function App() {
       {currentScreen === "dash" && (
         <DashboardScreen
           userInput={userInput}
-          expDate={expDate} // <-- YENİ EKLENDİ
+          expDate={expDate}
           allChannelsCount={channels.length}
           allMoviesCount={movies.length}
           allSeriesCount={seriesList.length}
