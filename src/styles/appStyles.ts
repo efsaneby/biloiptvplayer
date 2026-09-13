@@ -1,0 +1,140 @@
+// src/styles/appStyles.ts
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#121212",
+  },
+  dashboardContainer: {
+    flex: 1,
+    backgroundColor: "#121212",
+    padding: 20,
+  },
+  dashHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  dashTitle: {
+    color: "#FFD700",
+    fontSize: 22,
+    fontWeight: "bold",
+  },
+  dashSubtitle: {
+    color: "#888",
+    fontSize: 14,
+  },
+  dashHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  userInfo: {
+    color: "#FFF",
+    fontSize: 14,
+  },
+  settingsBtn: {
+    backgroundColor: "#333",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  settingsBtnText: {
+    color: "#FFF",
+    fontSize: 12,
+  },
+  cardsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 40,
+  },
+  dashCard: {
+    width: "30%",
+    height: 180,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  liveCard: { borderLeftColor: "#4CAF50", borderLeftWidth: 6 },
+  moviesCard: { borderLeftColor: "#2196F3", borderLeftWidth: 6 },
+  seriesCard: { borderLeftColor: "#9C27B0", borderLeftWidth: 6 },
+  dashCardFocused: {
+    borderColor: "#FFD700",
+    transform: [{ scale: 1.05 }],
+  },
+  cardIcon: { fontSize: 40, marginBottom: 10 },
+  cardTitle: { color: "#FFF", fontSize: 18, fontWeight: "bold" },
+  cardCount: { color: "#AAA", fontSize: 13, marginTop: 4 },
+  
+  // Kategori & Kanal Listeleri
+  categoryContainer: { width: "25%", backgroundColor: "#1A1A1A", padding: 8 },
+  channelContainer: { width: "35%", backgroundColor: "#222", padding: 8 },
+  playerContainer: { width: "40%", backgroundColor: "#000", justifyContent: "center", alignItems: "center" },
+  
+  categoryCard: { padding: 10, borderRadius: 6, marginBottom: 4, backgroundColor: "#2A2A2A" },
+  selectedCategoryCard: { backgroundColor: "#FFD700" },
+  categoryText: { color: "#FFF", fontSize: 12 },
+  selectedCategoryText: { color: "#000", fontWeight: "bold" },
+  
+  channelCard: { flexDirection: "row", alignItems: "center", padding: 8, borderRadius: 6, marginBottom: 4, backgroundColor: "#2A2A2A" },
+  selectedChannelCard: { backgroundColor: "#333", borderWidth: 1, borderColor: "#FFD700" },
+  focusedCard: { borderColor: "#FFD700", borderWidth: 2 },
+  focusedBtn: { borderColor: "#FFD700", borderWidth: 2 },
+  
+  channelLogo: { width: 35, height: 35, borderRadius: 4, marginRight: 8 },
+  noLogo: { backgroundColor: "#444", justifyContent: "center", alignItems: "center" },
+  noLogoText: { fontSize: 16 },
+  channelName: { color: "#FFF", fontSize: 12, flex: 1 },
+  favBtn: { padding: 4 },
+  
+  headerTitle: { color: "#FFD700", fontSize: 16, fontWeight: "bold", marginBottom: 8 },
+  headerRow: { flexDirection: "row", marginBottom: 10 },
+  backBtn: { backgroundColor: "#333", padding: 8, borderRadius: 6 },
+  searchInput: { backgroundColor: "#333", color: "#FFF", padding: 8, borderRadius: 6, marginBottom: 8, fontSize: 12 },
+  
+  // Video Oynatıcı
+  videoWrapper: { width: "100%", height: 220, backgroundColor: "#000", justifyContent: "center" },
+  videoPlayer: { width: "100%", height: "100%" },
+  videoOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center", alignItems: "center", zIndex: 2 },
+  channelInfoContainer: { padding: 10 },
+  selectedChannelTitle: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
+  selectedChannelCategory: { color: "#AAA", fontSize: 12, marginTop: 4 },
+  fullScreenBtn: { backgroundColor: "#FFD700", padding: 8, borderRadius: 6, marginTop: 10, alignItems: "center" },
+  fullScreenBtnText: { color: "#000", fontWeight: "bold", fontSize: 12 },
+  placeholderText: { color: "#666", fontSize: 14 },
+  
+  fullPlayerContainer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#000", zIndex: 999 },
+  fullVideo: { width: "100%", height: "100%" },
+  
+  // Film ve Dizi Izgaraları
+  movieGridCard: { margin: 4, backgroundColor: "#2A2A2A", borderRadius: 6, padding: 4, alignItems: "center" },
+  posterImage: { width: "100%", height: 120, borderRadius: 4 },
+  movieGridTitle: { color: "#FFF", fontSize: 10, marginTop: 4, textAlign: "center" },
+  movieDetailContainer: { alignItems: "center", padding: 10 },
+  detailPoster: { width: 140, height: 200, borderRadius: 8 },
+  detailTitle: { color: "#FFF", fontSize: 16, fontWeight: "bold", marginVertical: 10, textAlign: "center" },
+  playBtn: { backgroundColor: "#4CAF50", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 6 },
+  playBtnText: { color: "#FFF", fontWeight: "bold" },
+  episodeCard: { padding: 10, backgroundColor: "#2A2A2A", borderRadius: 6, marginBottom: 4 },
+  
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "center", alignItems: "center" },
+  modalContainer: { width: 320, backgroundColor: "#222", padding: 20, borderRadius: 10 },
+  modalTitle: { color: "#FFD700", fontSize: 18, fontWeight: "bold", marginBottom: 15, textAlign: "center" },
+  input: { backgroundColor: "#333", color: "#FFF", padding: 10, borderRadius: 6, marginBottom: 10 },
+  modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  btn: { flex: 1, padding: 10, borderRadius: 6, alignItems: "center", marginHorizontal: 4 },
+  saveBtn: { backgroundColor: "#4CAF50" },
+  cancelBtn: { backgroundColor: "#E53935" },
+  btnText: { color: "#FFF", fontWeight: "bold" },
+});
