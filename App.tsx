@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -50,6 +50,10 @@ export default function App() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
+  // FAVORİ KATEGORİLER & TAB STATE'LERİ
+  const [favoriteCategoryIds, setFavoriteCategoryIds] = useState<string[]>([]);
+  const [categoryTab, setCategoryTab] = useState<"ALL" | "FAV">("ALL");
+
   // Movies State
   const [movieCategories, setMovieCategories] = useState<Category[]>([]);
   const [selectedMovieCatId, setSelectedMovieCatId] = useState<string>("");
@@ -69,7 +73,19 @@ export default function App() {
 
   // Initial Load
   useEffect(() => {
-    loadSavedCredentials();
+    let isMounted = true;
+
+    const init = async () => {
+      await loadFavoriteCategories();
+      await loadFavoriteChannels();
+      await loadSavedCredentials(isMounted);
+    };
+
+    init();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Filmler ekranına girildiğinde veri yoksa otomatik çek
@@ -77,154 +93,287 @@ export default function App() {
     if (currentScreen === "movies" && movies.length === 0 && !moviesLoading) {
       handleFetchMovies();
     }
-  }, [currentScreen]);
+  }, [currentScreen, movies.length, moviesLoading]);
 
-  const loadSavedCredentials = async () => {
+  const loadSavedCredentials = async (isMounted = true) => {
     try {
       const s = await AsyncStorage.getItem("@iptv_server");
       const u = await AsyncStorage.getItem("@iptv_user");
       const p = await AsyncStorage.getItem("@iptv_pass");
 
-      if (s) setServerInput(s);
-      if (u) setUserInput(u);
-      if (p) setPassInput(p);
+      if (isMounted) {
+        if (s) setServerInput(s);
+        if (u) setUserInput(u);
+        if (p) setPassInput(p);
+      }
 
       if (s && u && p) {
-        loadLiveTvData(s, u, p);
+        loadLiveTvData(s, u, p, isMounted);
       }
     } catch (e) {
       console.error("Giriş bilgileri okunamadı:", e);
     }
   };
 
+  // FAVORİ KATEGORİLERİ OKU & KAYDET
+  const loadFavoriteCategories = async () => {
+    try {
+      const saved = await AsyncStorage.getItem("@fav_categories");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setFavoriteCategoryIds(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Favori kategoriler yüklenemedi:", e);
+    }
+  };
+
+  const toggleFavoriteCategory = async (catId: string) => {
+    try {
+      const updated = favoriteCategoryIds.includes(catId)
+        ? favoriteCategoryIds.filter((id) => id !== catId)
+        : [...favoriteCategoryIds, catId];
+
+      setFavoriteCategoryIds(updated);
+      await AsyncStorage.setItem("@fav_categories", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Favori kategori kaydedilemedi:", e);
+    }
+  };
+
+  // FAVORİ KANALLARI OKU & KAYDET
+  const loadFavoriteChannels = async () => {
+    try {
+      const saved = await AsyncStorage.getItem("@fav_channels");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setFavorites(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Favori kanallar yüklenemedi:", e);
+    }
+  };
+
+  const toggleFavorite = async (id: string) => {
+    try {
+      const updated = favorites.includes(id)
+        ? favorites.filter((item) => item !== id)
+        : [...favorites, id];
+
+      setFavorites(updated);
+      await AsyncStorage.setItem("@fav_channels", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Favori kanal kaydedilemedi:", e);
+    }
+  };
+
   const handleSaveCredentials = async () => {
-    await AsyncStorage.setItem("@iptv_server", serverInput);
-    await AsyncStorage.setItem("@iptv_user", userInput);
-    await AsyncStorage.setItem("@iptv_pass", passInput);
-    setIsModalOpen(false);
-    loadLiveTvData(serverInput, userInput, passInput);
+    try {
+      await AsyncStorage.setItem("@iptv_server", serverInput);
+      await AsyncStorage.setItem("@iptv_user", userInput);
+      await AsyncStorage.setItem("@iptv_pass", passInput);
+      setIsModalOpen(false);
+      loadLiveTvData(serverInput, userInput, passInput);
+    } catch (e) {
+      console.error("Bilgiler kaydedilemedi:", e);
+    }
   };
 
   // Live TV Loader
-  const loadLiveTvData = async (s: string, u: string, p: string) => {
-    const userInfo = await fetchUserInfo(s, u, p);
-    if (userInfo && userInfo.exp_date) {
-      const timeInMs = parseInt(userInfo.exp_date, 10) * 1000;
-      if (!isNaN(timeInMs)) {
-        const formattedDate = new Date(timeInMs).toLocaleDateString("tr-TR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
-        setExpDate(formattedDate);
-      } else {
-        setExpDate("Sınırsız / Belirsiz");
+  const loadLiveTvData = async (
+    s: string,
+    u: string,
+    p: string,
+    isMounted = true,
+  ) => {
+    try {
+      const userInfo = await fetchUserInfo(s, u, p);
+      if (isMounted) {
+        if (userInfo && userInfo.exp_date) {
+          const timeInMs = parseInt(userInfo.exp_date, 10) * 1000;
+          if (!isNaN(timeInMs)) {
+            const formattedDate = new Date(timeInMs).toLocaleDateString(
+              "tr-TR",
+              {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              },
+            );
+            setExpDate(formattedDate);
+          } else {
+            setExpDate("Sınırsız / Belirsiz");
+          }
+        } else {
+          setExpDate("Sınırsız");
+        }
+      }
+
+      const cats = await fetchCategories(s, u, p);
+      const chs = await fetchChannels(s, u, p);
+
+      if (isMounted) {
+        setCategories(cats);
+        if (cats.length > 0) {
+          setSelectedCategoryId(cats[0].category_id);
+        }
+        setChannels(chs);
+      }
+    } catch (e) {
+      console.error("Canlı TV verileri yüklenirken hata oluştu:", e);
+    }
+  };
+
+  // FİLTRELENMİŞ KATEGORİLER (TÜMÜ VEYA SADECE FAVORİ YILDIZLI OLANLAR)
+  const filteredCategories = useMemo(() => {
+    if (categoryTab === "FAV") {
+      // Sadece favoriye eklenmiş kategorileri göster
+      return categories.filter((cat) =>
+        favoriteCategoryIds.includes(cat.category_id),
+      );
+    }
+    return categories;
+  }, [categories, categoryTab, favoriteCategoryIds]);
+
+  // Tab veya Filtre değiştiğinde aktif seçili kategoriyi güncelle
+  useEffect(() => {
+    if (filteredCategories.length > 0) {
+      const exists = filteredCategories.some(
+        (c) => c.category_id === selectedCategoryId,
+      );
+      if (!exists) {
+        setSelectedCategoryId(filteredCategories[0].category_id);
       }
     } else {
-      setExpDate("Sınırsız");
+      setSelectedCategoryId("");
     }
-
-    const cats = await fetchCategories(s, u, p);
-    setCategories(cats);
-    if (cats.length > 0) {
-      setSelectedCategoryId(cats[0].category_id);
-    }
-    const chs = await fetchChannels(s, u, p);
-    setChannels(chs);
-  };
+  }, [filteredCategories, selectedCategoryId]);
 
   // Movies Loader
   const handleFetchMovies = async () => {
-    if (movies.length > 0) return;
+    if (movies.length > 0 || moviesLoading) return;
     setMoviesLoading(true);
-    const mCats = await fetchVodCategories(serverInput, userInput, passInput);
-    setMovieCategories(mCats);
-    if (mCats.length > 0) setSelectedMovieCatId(mCats[0].category_id);
+    try {
+      const mCats = await fetchVodCategories(serverInput, userInput, passInput);
+      setMovieCategories(mCats);
+      if (mCats.length > 0) setSelectedMovieCatId(mCats[0].category_id);
 
-    const mList = await fetchVodStreams(serverInput, userInput, passInput);
-    setMovies(mList);
-    setMoviesLoading(false);
+      const mList = await fetchVodStreams(serverInput, userInput, passInput);
+      setMovies(mList);
+    } catch (e) {
+      console.error("Filmler yüklenirken hata oluştu:", e);
+    } finally {
+      setMoviesLoading(false);
+    }
   };
 
   // Series Loader
   const handleFetchSeries = async () => {
-    if (seriesLoaded) return;
+    if (seriesLoaded || seriesLoading) return;
     setSeriesLoading(true);
-    const sCats = await fetchSeriesCategories(
-      serverInput,
-      userInput,
-      passInput,
-    );
-    setSeriesCategories(sCats);
-    if (sCats.length > 0) setSelectedSeriesCatId(sCats[0].category_id);
+    try {
+      const sCats = await fetchSeriesCategories(
+        serverInput,
+        userInput,
+        passInput,
+      );
+      setSeriesCategories(sCats);
+      if (sCats.length > 0) setSelectedSeriesCatId(sCats[0].category_id);
 
-    const sList = await fetchSeries(serverInput, userInput, passInput);
-    setSeriesList(sList);
-    setSeriesLoading(false);
-    setSeriesLoaded(true);
+      const sList = await fetchSeries(serverInput, userInput, passInput);
+      setSeriesList(sList);
+      setSeriesLoaded(true);
+    } catch (e) {
+      console.error("Diziler yüklenirken hata oluştu:", e);
+    } finally {
+      setSeriesLoading(false);
+    }
   };
 
   const handleFetchSeriesEpisodes = async (seriesId: number) => {
     setSeriesLoading(true);
-    const eps = await fetchSeriesInfo(
-      serverInput,
-      userInput,
-      passInput,
-      seriesId,
-    );
-    setEpisodes(eps);
-    const seasonKeys = Object.keys(eps);
-    if (seasonKeys.length > 0) setSelectedSeason(seasonKeys[0]);
-    setSeriesLoading(false);
-  };
-
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
+    try {
+      const eps = await fetchSeriesInfo(
+        serverInput,
+        userInput,
+        passInput,
+        seriesId,
+      );
+      setEpisodes(eps);
+      const seasonKeys = Object.keys(eps);
+      if (seasonKeys.length > 0) setSelectedSeason(seasonKeys[0]);
+    } catch (e) {
+      console.error("Bölümler yüklenirken hata oluştu:", e);
+    } finally {
+      setSeriesLoading(false);
+    }
   };
 
   const handlePlayMovie = (movie: VodItem) => {
-    const url = `${serverInput}/movie/${userInput}/${passInput}/${movie.stream_id}.${movie.container_extension || "mp4"}`;
+    const url = `${serverInput}/movie/${userInput}/${passInput}/${movie.stream_id}.${
+      movie.container_extension || "mp4"
+    }`;
     setActiveMediaUrl(url);
     setIsFullscreen(true);
   };
 
   const handlePlayEpisode = (episode: Episode) => {
-    const url = `${serverInput}/series/${userInput}/${passInput}/${episode.id}.${episode.container_extension || "mp4"}`;
+    const url = `${serverInput}/series/${userInput}/${passInput}/${episode.id}.${
+      episode.container_extension || "mp4"
+    }`;
     setActiveMediaUrl(url);
     setIsFullscreen(true);
   };
 
-  const filteredChannels = channels.filter((c) => {
-    const matchCat = selectedCategoryId
-      ? c.category_id === selectedCategoryId
-      : true;
-    const matchSearch = c.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  // FİLTRELENMİŞ KANALLAR (Kategori, Arama ve FAV Tab Desteği ile)
+  const filteredChannels = useMemo(() => {
+    if (categoryTab === "FAV") {
+      // FAVORİLER Sekmesi: Hem tekil favori kanalları HEM DE favori kategorilerin kanallarını getir
+      return channels.filter(
+        (ch) =>
+          favorites.includes(ch.id) ||
+          favoriteCategoryIds.includes(ch.category_id),
+      );
+    }
 
-  const filteredMovies = movies.filter((m) => {
-    const matchCat = selectedMovieCatId
-      ? m.category_id === selectedMovieCatId
-      : true;
-    const matchSearch = m.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
-  });
+    // ALL Sekmesi: Seçili kategoriye göre getir
+    if (!selectedCategoryId) return channels;
+    return channels.filter((ch) => ch.category_id === selectedCategoryId);
+  }, [
+    channels,
+    categoryTab,
+    selectedCategoryId,
+    favorites,
+    favoriteCategoryIds,
+  ]);
 
-  const filteredSeries = seriesList.filter((s) => {
-    const matchCat = selectedSeriesCatId
-      ? s.category_id === selectedSeriesCatId
-      : true;
-    const matchSearch = s.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  const filteredMovies = useMemo(() => {
+    return movies.filter((m) => {
+      const matchCat = selectedMovieCatId
+        ? m.category_id === selectedMovieCatId
+        : true;
+      const matchSearch = m.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [movies, selectedMovieCatId, searchQuery]);
+
+  const filteredSeries = useMemo(() => {
+    return seriesList.filter((s) => {
+      const matchCat = selectedSeriesCatId
+        ? s.category_id === selectedSeriesCatId
+        : true;
+      const matchSearch = s.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [seriesList, selectedSeriesCatId, searchQuery]);
 
   return (
     <View style={styles.container}>
@@ -241,6 +390,8 @@ export default function App() {
           isModalOpen={isModalOpen}
           serverInput={serverInput}
           passInput={passInput}
+          categoryTab={categoryTab}
+          setCategoryTab={setCategoryTab}
           setServerInput={setServerInput}
           setUserInput={setUserInput}
           setPassInput={setPassInput}
@@ -255,7 +406,11 @@ export default function App() {
 
       {currentScreen === "live" && (
         <LiveTvScreen
-          categories={categories}
+          categories={filteredCategories}
+          categoryTab={categoryTab}
+          setCategoryTab={setCategoryTab}
+          favoriteCategoryIds={favoriteCategoryIds}
+          toggleFavoriteCategory={toggleFavoriteCategory}
           selectedCategoryId={selectedCategoryId}
           setSelectedCategoryId={setSelectedCategoryId}
           filteredChannels={filteredChannels}
@@ -272,6 +427,9 @@ export default function App() {
           isFullscreen={isFullscreen}
           setIsFullscreen={setIsFullscreen}
           onGoBack={() => setCurrentScreen("dash")}
+          allCountries={[]}
+          selectedCountry={""}
+          setSelectedCountry={() => {}}
         />
       )}
 

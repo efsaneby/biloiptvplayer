@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  BackHandler,
+  ListRenderItemInfo,
 } from "react-native";
 import Video from "react-native-video";
 import { styles } from "../styles/appStyles";
@@ -46,12 +48,58 @@ interface SeriesScreenProps {
   focusedId: string | null;
   setFocusedId: (id: string | null) => void;
   isFullscreen: boolean;
+  setIsFullscreen?: (fullscreen: boolean) => void;
   activeMediaUrl: string | null;
   setIsVideoLoading: (loading: boolean) => void;
   onFetchSeriesEpisodes: (seriesId: number) => void;
   onPlayEpisode: (episode: Episode) => void;
   onGoBack: () => void;
 }
+
+type CustomPressableState = { pressed: boolean; focused?: boolean };
+
+const SERIES_CARD_HEIGHT = 180;
+
+// Performans için memoize edilmiş Dizi Kartı
+const SeriesItemCard = memo(
+  ({
+    item,
+    isFocused,
+    onFocus,
+    onPress,
+  }: {
+    item: SeriesItem;
+    isFocused: boolean;
+    onFocus: () => void;
+    onPress: () => void;
+  }) => (
+    <Pressable
+      style={[
+        styles.movieGridCard,
+        { width: "23%" },
+        isFocused && styles.focusedCard,
+      ]}
+      focusable={true}
+      onFocus={onFocus}
+      onPress={onPress}
+    >
+      {item.cover ? (
+        <Image
+          source={{ uri: item.cover }}
+          style={styles.posterImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.posterImage, styles.noLogo]}>
+          <Text style={styles.noLogoText}>🍿</Text>
+        </View>
+      )}
+      <Text style={styles.movieGridTitle} numberOfLines={2}>
+        {item.name}
+      </Text>
+    </Pressable>
+  ),
+);
 
 export const SeriesScreen: React.FC<SeriesScreenProps> = ({
   seriesCategories,
@@ -70,19 +118,71 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
   focusedId,
   setFocusedId,
   isFullscreen,
+  setIsFullscreen,
   activeMediaUrl,
   setIsVideoLoading,
   onFetchSeriesEpisodes,
   onPlayEpisode,
   onGoBack,
 }) => {
+  // Kumanda Geri Tuşu Yönetimi
+  useEffect(() => {
+    const backAction = () => {
+      // 1. Tam ekranda video oynatılıyorsa önce videoyu kapat
+      if (isFullscreen && setIsFullscreen) {
+        setIsFullscreen(false);
+        return true;
+      }
+      // 2. Bir dizinin detayındaysa dizi listesine dön
+      if (selectedSeries) {
+        setSelectedSeries(null);
+        return true;
+      }
+      // 3. Normal durumdaysa varsayılan geri fonksiyonunu çalıştır
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction,
+    );
+
+    return () => backHandler.remove();
+  }, [isFullscreen, setIsFullscreen, selectedSeries, setSelectedSeries]);
+
+  // Dizi Kartı Render Fonksiyonu
+  const renderSeriesItem = useCallback(
+    ({ item }: ListRenderItemInfo<SeriesItem>) => (
+      <SeriesItemCard
+        item={item}
+        isFocused={focusedId === `ser_${item.series_id}`}
+        onFocus={() => setFocusedId(`ser_${item.series_id}`)}
+        onPress={() => {
+          setSelectedSeries(item);
+          onFetchSeriesEpisodes(item.series_id);
+        }}
+      />
+    ),
+    [focusedId, setFocusedId, setSelectedSeries, onFetchSeriesEpisodes],
+  );
+
+  // FlatList Hizalaması ve Kaydırma Optimizasyonu (4 sütunlu grid hesabı)
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: SERIES_CARD_HEIGHT,
+      offset: SERIES_CARD_HEIGHT * Math.floor(index / 4),
+      index,
+    }),
+    [],
+  );
+
   return (
     <View style={styles.container}>
       {/* Sol Kategori Paneli */}
       <View style={styles.categoryContainer}>
         <View style={styles.headerRow}>
           <Pressable
-            style={({ focused }: any) => [
+            style={({ focused }: CustomPressableState) => [
               styles.backBtn,
               focused && styles.focusedBtn,
             ]}
@@ -102,6 +202,21 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
           <FlatList
             data={seriesCategories}
             keyExtractor={(item) => item.category_id}
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            ListEmptyComponent={
+              <Text
+                style={{
+                  color: "#888",
+                  textAlign: "center",
+                  marginTop: 20,
+                  fontSize: 12,
+                }}
+              >
+                Kategori bulunamadı.
+              </Text>
+            }
             renderItem={({ item }) => (
               <Pressable
                 style={[
@@ -159,36 +274,20 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
               data={filteredSeries}
               keyExtractor={(item) => item.series_id.toString()}
               numColumns={4}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={[
-                    styles.movieGridCard,
-                    { width: "23%" },
-                    focusedId === `ser_${item.series_id}` && styles.focusedCard,
-                  ]}
-                  focusable={true}
-                  onFocus={() => setFocusedId(`ser_${item.series_id}`)}
-                  onPress={() => {
-                    setSelectedSeries(item);
-                    onFetchSeriesEpisodes(item.series_id);
-                  }}
+              initialNumToRender={12}
+              maxToRenderPerBatch={8}
+              updateCellsBatchingPeriod={50}
+              windowSize={5}
+              removeClippedSubviews={true}
+              getItemLayout={getItemLayout}
+              renderItem={renderSeriesItem}
+              ListEmptyComponent={
+                <Text
+                  style={{ color: "#888", textAlign: "center", marginTop: 40 }}
                 >
-                  {item.cover ? (
-                    <Image
-                      source={{ uri: item.cover }}
-                      style={styles.posterImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.posterImage, styles.noLogo]}>
-                      <Text style={styles.noLogoText}>🍿</Text>
-                    </View>
-                  )}
-                  <Text style={styles.movieGridTitle} numberOfLines={2}>
-                    {item.name}
-                  </Text>
-                </Pressable>
-              )}
+                  Dizi bulunamadı.
+                </Text>
+              }
             />
           )}
         </View>
@@ -197,7 +296,11 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
           {/* Sezon Seçimi */}
           <View style={{ width: "35%", paddingRight: 8 }}>
             <Pressable
-              style={[styles.backBtn, { marginBottom: 10 }]}
+              style={({ focused }: CustomPressableState) => [
+                styles.backBtn,
+                { marginBottom: 10 },
+                focused && styles.focusedBtn,
+              ]}
               focusable={true}
               onPress={() => setSelectedSeries(null)}
             >
@@ -228,8 +331,10 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
                       styles.categoryCard,
                       selectedSeason === seasonKey &&
                         styles.selectedCategoryCard,
+                      focusedId === `season_${seasonKey}` && styles.focusedCard,
                     ]}
                     focusable={true}
+                    onFocus={() => setFocusedId(`season_${seasonKey}`)}
                     onPress={() => setSelectedSeason(seasonKey)}
                   >
                     <Text style={{ color: "#FFF", fontSize: 12 }}>
@@ -256,13 +361,17 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
               <FlatList
                 data={episodes[selectedSeason]}
                 keyExtractor={(ep) => ep.id.toString()}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={5}
                 renderItem={({ item }) => (
                   <Pressable
-                    style={({ focused }: any) => [
+                    style={({ focused }: CustomPressableState) => [
                       styles.episodeCard,
                       focused && styles.focusedCard,
                     ]}
                     focusable={true}
+                    onFocus={() => setFocusedId(`ep_${item.id}`)}
                     onPress={() => onPlayEpisode(item)}
                   >
                     <Text style={{ color: "#FFF", fontSize: 13 }}>

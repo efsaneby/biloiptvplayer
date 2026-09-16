@@ -36,6 +36,76 @@ export interface Episode {
   episode_num: number;
   title: string;
   container_extension: string;
+  url?: string;
+}
+
+export interface UserAccountInfo {
+  username: string;
+  status: string;
+  exp_date: string | null;
+}
+
+// GÜVENLİ YARDIMCI FONKSİYONLAR
+const cleanUrl = (server: string): string => {
+  let cleaned = server.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(cleaned)) {
+    cleaned = `http://${cleaned}`;
+  }
+  return cleaned;
+};
+
+export async function safeFetchJson(
+  url: string,
+  retries = 2,
+  delay = 2000,
+): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 saniye zaman aşımı
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) IPTV-Player",
+        Accept: "application/json",
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      // Sunucu 502, 500 veya 504 verirse ve deneme hakkı varsa tekrar dene
+      if (response.status >= 500 && retries > 0) {
+        console.warn(
+          `Sunucu yanıt vermedi (${response.status}). Tekrar deneniyor... (${retries} hak kaldı)`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return safeFetchJson(url, retries - 1, delay * 1.5);
+      }
+
+      throw new Error(
+        `HTTP Hatası: ${response.status} - Sunucu geçici olarak hizmet veremiyor.`,
+      );
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+
+    if (error.name === "AbortError") {
+      throw new Error(
+        "Sunucu yanıt verme süresi aşıldı (Timeout). Lütfen bağlantınızı kontrol edin.",
+      );
+    }
+
+    // Tekrar deneme hakkı kaldıysa ağ hatalarında da dene
+    if (retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return safeFetchJson(url, retries - 1, delay * 1.5);
+    }
+
+    throw error;
+  }
 }
 
 // 2. LIVE TV API FONKSİYONLARI
@@ -44,16 +114,16 @@ export const fetchCategories = async (
   user: string,
   pass: string,
 ): Promise<Category[]> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_live_categories`,
-    );
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Canlı Yayın Kategorileri Çekilemedi:", error);
-    return [];
-  }
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_live_categories`;
+  const data = await safeFetchJson(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((cat: any) => ({
+    category_id: cat.category_id?.toString() || "",
+    category_name: cat.category_name || "Diğer",
+  }));
 };
 
 export const fetchChannels = async (
@@ -61,26 +131,20 @@ export const fetchChannels = async (
   user: string,
   pass: string,
 ): Promise<Channel[]> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_live_streams`,
-    );
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      return data.map((item: any) => ({
-        id: item.stream_id?.toString() || Math.random().toString(),
-        name: item.name || "Bilinmeyen Kanal",
-        logo: item.stream_icon || "",
-        group: item.category_id || "",
-        category_id: item.category_id?.toString() || "",
-        url: `${server}/live/${user}/${pass}/${item.stream_id}.ts`,
-      }));
-    }
-    return [];
-  } catch (error) {
-    console.error("Kanallar Çekilemedi:", error);
-    return [];
-  }
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_live_streams`;
+  const data = await safeFetchJson(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item: any) => ({
+    id: item.stream_id?.toString() || Math.random().toString(),
+    name: item.name || "Bilinmeyen Kanal",
+    logo: item.stream_icon || "",
+    group: item.category_id?.toString() || "",
+    category_id: item.category_id?.toString() || "",
+    url: `${baseUrl}/live/${user}/${pass}/${item.stream_id}.ts`,
+  }));
 };
 
 // 3. MOVIES (VOD) API FONKSİYONLARI
@@ -89,16 +153,16 @@ export const fetchVodCategories = async (
   user: string,
   pass: string,
 ): Promise<Category[]> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_vod_categories`,
-    );
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Film Kategorileri Çekilemedi:", error);
-    return [];
-  }
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_vod_categories`;
+  const data = await safeFetchJson(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((cat: any) => ({
+    category_id: cat.category_id?.toString() || "",
+    category_name: cat.category_name || "Diğer",
+  }));
 };
 
 export const fetchVodStreams = async (
@@ -106,16 +170,16 @@ export const fetchVodStreams = async (
   user: string,
   pass: string,
 ): Promise<VodItem[]> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_vod_streams`,
-    );
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Filmler Çekilemedi:", error);
-    return [];
-  }
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_vod_streams`;
+  const data = await safeFetchJson(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item: any) => ({
+    ...item,
+    category_id: item.category_id?.toString() || "",
+  }));
 };
 
 // 4. SERIES API FONKSİYONLARI
@@ -124,16 +188,16 @@ export const fetchSeriesCategories = async (
   user: string,
   pass: string,
 ): Promise<Category[]> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_series_categories`,
-    );
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Dizi Kategorileri Çekilemedi:", error);
-    return [];
-  }
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_series_categories`;
+  const data = await safeFetchJson(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((cat: any) => ({
+    category_id: cat.category_id?.toString() || "",
+    category_name: cat.category_name || "Diğer",
+  }));
 };
 
 export const fetchSeries = async (
@@ -141,16 +205,16 @@ export const fetchSeries = async (
   user: string,
   pass: string,
 ): Promise<SeriesItem[]> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_series`,
-    );
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error("Diziler Çekilemedi:", error);
-    return [];
-  }
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_series`;
+  const data = await safeFetchJson(url);
+
+  if (!Array.isArray(data)) return [];
+
+  return data.map((item: any) => ({
+    ...item,
+    category_id: item.category_id?.toString() || "",
+  }));
 };
 
 export const fetchSeriesInfo = async (
@@ -159,57 +223,47 @@ export const fetchSeriesInfo = async (
   pass: string,
   seriesId: number,
 ): Promise<{ [season: string]: Episode[] }> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}&action=get_series_info&series_id=${seriesId}`,
-    );
-    const data = await res.json();
-    const episodesData = data.episodes || {};
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_series_info&series_id=${seriesId}`;
+  const data = await safeFetchJson(url);
 
-    // API gelen sezon/bölüm yapısını formatlama
-    const formattedEpisodes: { [season: string]: Episode[] } = {};
-    Object.keys(episodesData).forEach((seasonNum) => {
-      formattedEpisodes[seasonNum] = episodesData[seasonNum].map((ep: any) => ({
-        id: ep.id,
+  if (!data || !data.episodes) return {};
+
+  const episodesData = data.episodes;
+  const formattedEpisodes: { [season: string]: Episode[] } = {};
+
+  Object.keys(episodesData).forEach((seasonNum) => {
+    formattedEpisodes[seasonNum] = episodesData[seasonNum].map((ep: any) => {
+      const ext = ep.container_extension || "mp4";
+      return {
+        id: ep.id?.toString() || "",
         episode_num: ep.episode_num,
         title: ep.title,
-        container_extension: ep.container_extension || "mp4",
-      }));
+        container_extension: ext,
+        url: `${baseUrl}/series/${user}/${pass}/${ep.id}.${ext}`,
+      };
     });
+  });
 
-    return formattedEpisodes;
-  } catch (error) {
-    console.error("Dizi Detayları/Bölümleri Çekilemedi:", error);
-    return {};
-  }
+  return formattedEpisodes;
 };
 
-export interface UserAccountInfo {
-  username: string;
-  status: string;
-  exp_date: string | null; // Unix timestamp
-}
-
+// 5. KULLANICI BİLGİLERİ API FONKSİYONU
 export const fetchUserInfo = async (
   server: string,
   user: string,
   pass: string,
 ): Promise<UserAccountInfo | null> => {
-  try {
-    const res = await fetch(
-      `${server}/player_api.php?username=${user}&password=${pass}`,
-    );
-    const data = await res.json();
-    if (data && data.user_info) {
-      return {
-        username: data.user_info.username,
-        status: data.user_info.status,
-        exp_date: data.user_info.exp_date,
-      };
-    }
-    return null;
-  } catch (error) {
-    console.error("Kullanıcı Bilgileri Çekilemedi:", error);
-    return null;
+  const baseUrl = cleanUrl(server);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`;
+  const data = await safeFetchJson(url);
+
+  if (data && data.user_info) {
+    return {
+      username: data.user_info.username,
+      status: data.user_info.status,
+      exp_date: data.user_info.exp_date,
+    };
   }
+  return null;
 };
