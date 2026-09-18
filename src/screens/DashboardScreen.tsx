@@ -27,6 +27,7 @@ export interface DashboardScreenProps {
   onFetchMovies: () => void;
   onFetchSeries: () => void;
   setSearchQuery: (val: string) => void;
+  onLogout?: () => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -50,6 +51,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onFetchMovies,
   onFetchSeries,
   setSearchQuery,
+  onLogout,
 }) => {
   return (
     <View style={styles.dashboardContainer}>
@@ -156,10 +158,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       </View>
 
       {/* GİRİŞ BİLGİLERİ (AYARLAR) MODALI */}
+      {/* GİRİŞ BİLGİLERİ (AYARLAR / LOGIN) MODALI */}
       <Modal visible={isModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>IPTV Giriş Bilgileri</Text>
+            <Text style={styles.modalTitle}>
+              {userInput ? "IPTV Ayarları" : "IPTV Hesabınızla Giriş Yapın"}
+            </Text>
 
             <Text style={styles.inputLabel}>Sunucu URL (DNS):</Text>
             <TextInput
@@ -168,6 +173,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               onChangeText={setServerInput}
               placeholder="http://example.com:8080"
               placeholderTextColor="#666"
+              autoCapitalize="none"
             />
 
             <Text style={styles.inputLabel}>Kullanıcı Adı:</Text>
@@ -177,6 +183,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               onChangeText={setUserInput}
               placeholder="Kullanıcı Adı"
               placeholderTextColor="#666"
+              autoCapitalize="none"
             />
 
             <Text style={styles.inputLabel}>Şifre:</Text>
@@ -190,17 +197,25 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             />
 
             <View style={[styles.modalButtons, { marginTop: 20 }]}>
-              <Pressable
-                style={({ focused }: CustomPressableState) => [
-                  styles.btn,
-                  styles.cancelBtn,
-                  focused && styles.focusedBtn,
-                ]}
-                focusable={true}
-                onPress={() => setIsModalOpen(false)}
-              >
-                <Text style={styles.btnText}>İptal</Text>
-              </Pressable>
+              {/* Sadece hali hazırda giriş yapılmışsa İptal butonunu göster */}
+              {userInput.length > 0 && (
+                <Pressable
+                  style={({ focused }: CustomPressableState) => [
+                    styles.btn,
+                    { backgroundColor: "#d9534f" },
+                    focused && styles.focusedBtn,
+                  ]}
+                  focusable={true}
+                  onPress={() => {
+                    setIsModalOpen(false);
+                    onLogout?.();
+                  }}
+                >
+                  <Text style={[styles.btnText, { color: "#fff" }]}>
+                    Çıkış Yap
+                  </Text>
+                </Pressable>
+              )}
 
               <Pressable
                 style={({ focused }: CustomPressableState) => [
@@ -217,7 +232,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     { color: "#000", fontWeight: "bold" },
                   ]}
                 >
-                  Kaydet & Yükle
+                  Giriş Yap & Yükle
                 </Text>
               </Pressable>
             </View>

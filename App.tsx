@@ -108,10 +108,40 @@ export default function App() {
       }
 
       if (s && u && p) {
+        // Kayıtlı bilgi varsa verileri çek
         loadLiveTvData(s, u, p, isMounted);
+      } else {
+        // Kayıtlı bilgi YOKSA giriş modalını aç
+        if (isMounted) setIsModalOpen(true);
       }
     } catch (e) {
       console.error("Giriş bilgileri okunamadı:", e);
+      if (isMounted) setIsModalOpen(true);
+    }
+  };
+
+  // ÇIKIŞ YAP (LOGOUT) FONKSİYONU
+  const handleLogout = async () => {
+    try {
+      // 1. Cihazda saklanan bilgileri temizle
+      await AsyncStorage.removeItem("@iptv_server");
+      await AsyncStorage.removeItem("@iptv_user");
+      await AsyncStorage.removeItem("@iptv_pass");
+
+      // 2. State'leri sıfırla
+      setServerInput("");
+      setUserInput("");
+      setPassInput("");
+      setChannels([]);
+      setCategories([]);
+      setMovies([]);
+      setSeriesList([]);
+      setExpDate(null);
+
+      // 3. Kullanıcıyı Giriş Ekranına (Modal) yönlendir
+      setIsModalOpen(true);
+    } catch (e) {
+      console.error("Çıkış yapılırken hata oluştu:", e);
     }
   };
 
@@ -401,6 +431,7 @@ export default function App() {
           onFetchMovies={handleFetchMovies}
           onFetchSeries={handleFetchSeries}
           setSearchQuery={setSearchQuery}
+          onLogout={handleLogout}
         />
       )}
 
