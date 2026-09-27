@@ -432,7 +432,9 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
             style={styles.fullVideo}
             controls={true}
             resizeMode="contain"
-            onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
+            onBuffer={({ isBuffering }: { isBuffering: boolean }) =>
+              setIsVideoLoading(isBuffering)
+            }
             onLoad={() => setIsVideoLoading(false)}
             onError={() => alert("Bölüm açılırken hata oluştu.")}
           />

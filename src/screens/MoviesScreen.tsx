@@ -319,7 +319,9 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
             style={styles.fullVideo}
             controls={true}
             resizeMode="contain"
-            onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
+            onBuffer={({ isBuffering }: { isBuffering: boolean }) =>
+              setIsVideoLoading(isBuffering)
+            }
             onLoad={() => setIsVideoLoading(false)}
             onError={() => alert("Film açılırken hata oluştu.")}
           />

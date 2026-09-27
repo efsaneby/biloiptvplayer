@@ -460,7 +460,9 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
                     bufferForPlaybackAfterRebufferMs: 5000,
                   }}
                   automaticallyWaitsToMinimizeStalling={true}
-                  onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
+                  onBuffer={({ isBuffering }: { isBuffering: boolean }) =>
+                    setIsVideoLoading(isBuffering)
+                  }
                   onLoad={() => setIsVideoLoading(false)}
                   onError={() => setIsVideoLoading(false)}
                 />
@@ -509,7 +511,9 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
               bufferForPlaybackAfterRebufferMs: 5000,
             }}
             automaticallyWaitsToMinimizeStalling={true}
-            onBuffer={({ isBuffering }) => setIsVideoLoading(isBuffering)}
+            onBuffer={({ isBuffering }: { isBuffering: boolean }) =>
+              setIsVideoLoading(isBuffering)
+            }
             onLoad={() => setIsVideoLoading(false)}
             onError={() => setIsVideoLoading(false)}
           />
