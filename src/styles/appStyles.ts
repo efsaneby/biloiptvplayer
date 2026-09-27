@@ -129,6 +129,16 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
     transform: [{ scale: 1.05 }],
   },
+  tvFocusedControl: {
+    borderColor: "#00E5FF",
+    borderWidth: 4,
+    elevation: 12,
+    shadowColor: "#00E5FF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    zIndex: 10,
+  },
 
   channelLogo: { width: 35, height: 35, borderRadius: 4, marginRight: 8 },
   noLogo: {

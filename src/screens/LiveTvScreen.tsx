@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  Pressable,
   Image,
   TextInput,
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
   PressableStateCallbackType,
 } from "react-native";
 import Video from "react-native-video";
+import { TvPressable as Pressable } from "../components/TvPressable";
 import { styles } from "../styles/appStyles";
 import { Category, Channel } from "../utils/m3uParser";
 
@@ -53,14 +53,20 @@ const ChannelItem = memo(
     item,
     isSelected,
     isFavorite,
+    isFocused,
+    isFavoriteFocused,
     onFocus,
+    onFavoriteFocus,
     onPress,
     onToggleFavorite,
   }: {
     item: Channel;
     isSelected: boolean;
     isFavorite: boolean;
+    isFocused: boolean;
+    isFavoriteFocused: boolean;
     onFocus: () => void;
+    onFavoriteFocus: () => void;
     onPress: () => void;
     onToggleFavorite: () => void;
   }) => (
@@ -85,7 +91,7 @@ const ChannelItem = memo(
             height: "100%",
           },
           isSelected && styles.selectedChannelCard,
-          focused && styles.focusedCard,
+          (focused || isFocused) && styles.focusedCard,
         ]}
       >
         {item.logo ? (
@@ -113,11 +119,12 @@ const ChannelItem = memo(
 
       <Pressable
         focusable={true}
+        onFocus={onFavoriteFocus}
         onPress={onToggleFavorite}
         style={({ focused }: CustomPressableState) => [
           styles.favBtn,
           { paddingHorizontal: 12, height: "100%", justifyContent: "center" },
-          focused && { backgroundColor: "#FFD70033", borderRadius: 4 },
+          (focused || isFavoriteFocused) && styles.focusedCard,
         ]}
       >
         <Text style={{ fontSize: 16, color: isFavorite ? "#FFD700" : "#888" }}>
@@ -189,7 +196,10 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
         item={item}
         isSelected={selectedChannel?.id === item.id}
         isFavorite={favorites.includes(item.id)}
+        isFocused={focusedId === `ch_${item.id}`}
+        isFavoriteFocused={focusedId === `ch_fav_${item.id}`}
         onFocus={() => setFocusedId(`ch_${item.id}`)}
+        onFavoriteFocus={() => setFocusedId(`ch_fav_${item.id}`)}
         onPress={() => setSelectedChannel(item)}
         onToggleFavorite={() => toggleFavorite(item.id)}
       />
@@ -197,6 +207,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
     [
       selectedChannel?.id,
       favorites,
+      focusedId,
       setFocusedId,
       setSelectedChannel,
       toggleFavorite,
@@ -424,7 +435,8 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
           maxToRenderPerBatch={8}
           updateCellsBatchingPeriod={50}
           windowSize={5}
-          removeClippedSubviews={true}
+          removeClippedSubviews={false}
+          extraData={focusedId}
           getItemLayout={getItemLayout}
           renderItem={renderChannelItem}
         />
@@ -452,6 +464,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
                   }}
                   style={styles.videoPlayer}
                   controls={false}
+                  controlsStyles={{ hideLiveBadge: true }}
                   resizeMode="contain"
                   bufferConfig={{
                     minBufferMs: 15000,
@@ -502,7 +515,8 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
               headers: { "User-Agent": "IPTV-Player" },
             }}
             style={styles.fullVideo}
-            controls={true}
+            controls={false}
+            controlsStyles={{ hideLiveBadge: true }}
             resizeMode="contain"
             bufferConfig={{
               minBufferMs: 15000,

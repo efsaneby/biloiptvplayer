@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, Pressable, Modal, TextInput } from "react-native";
+import { View, Text, Modal, TextInput } from "react-native";
+import { TvPressable as Pressable } from "../components/TvPressable";
 import { styles } from "../styles/appStyles";
 
 type CustomPressableState = { pressed: boolean; focused?: boolean };

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  Pressable,
   Image,
   TextInput,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   PressableStateCallbackType,
 } from "react-native";
 import Video from "react-native-video";
+import { TvPressable as Pressable } from "../components/TvPressable";
 import { styles } from "../styles/appStyles";
 import { Category } from "../utils/m3uParser";
 
