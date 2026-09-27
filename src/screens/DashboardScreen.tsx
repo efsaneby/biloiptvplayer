@@ -84,7 +84,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <Pressable
             style={({ focused }: CustomPressableState) => [
               styles.settingsBtn,
-              focused && styles.focusedBtn,
+              focused &&
+                (styles.focusedBtn || {
+                  borderWidth: 3,
+                  borderColor: "#00E5FF",
+                  transform: [{ scale: 1.05 }],
+                }),
             ]}
             focusable={true}
             onPress={() => setIsModalOpen(true)}
@@ -96,14 +101,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
       {/* KARTLAR CONTAINER */}
       <View style={styles.cardsContainer}>
+        {/* LIVE TV KARTI */}
         <Pressable
           style={({ focused }: CustomPressableState) => [
             styles.dashCard,
             styles.liveCard,
-            focused && styles.dashCardFocused,
+            focused &&
+              (styles.dashCardFocused || {
+                borderWidth: 4,
+                borderColor: "#00E5FF",
+                transform: [{ scale: 1.05 }],
+              }),
           ]}
           focusable={true}
-          hasTVPreferredFocus={true}
+          hasTVPreferredFocus={true} // TV ilk açıldığında doğrudan bu kart seçili gelir
           onPress={() => {
             setSearchQuery("");
             onNavigate("live");
@@ -114,11 +125,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <Text style={styles.cardCount}>{allChannelsCount} Kanal</Text>
         </Pressable>
 
+        {/* MOVIES KARTI */}
         <Pressable
           style={({ focused }: CustomPressableState) => [
             styles.dashCard,
             styles.moviesCard,
-            focused && styles.dashCardFocused,
+            focused &&
+              (styles.dashCardFocused || {
+                borderWidth: 4,
+                borderColor: "#00E5FF",
+                transform: [{ scale: 1.05 }],
+              }),
           ]}
           focusable={true}
           onPress={() => {
@@ -134,11 +151,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </Text>
         </Pressable>
 
+        {/* SERIES KARTI */}
         <Pressable
           style={({ focused }: CustomPressableState) => [
             styles.dashCard,
             styles.seriesCard,
-            focused && styles.dashCardFocused,
+            focused &&
+              (styles.dashCardFocused || {
+                borderWidth: 4,
+                borderColor: "#00E5FF",
+                transform: [{ scale: 1.05 }],
+              }),
           ]}
           focusable={true}
           onPress={() => {
@@ -157,7 +180,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </Pressable>
       </View>
 
-      {/* GİRİŞ BİLGİLERİ (AYARLAR) MODALI */}
       {/* GİRİŞ BİLGİLERİ (AYARLAR / LOGIN) MODALI */}
       <Modal visible={isModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -197,13 +219,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             />
 
             <View style={[styles.modalButtons, { marginTop: 20 }]}>
-              {/* Sadece hali hazırda giriş yapılmışsa İptal butonunu göster */}
               {userInput.length > 0 && (
                 <Pressable
                   style={({ focused }: CustomPressableState) => [
                     styles.btn,
                     { backgroundColor: "#d9534f" },
-                    focused && styles.focusedBtn,
+                    focused &&
+                      (styles.focusedBtn || {
+                        borderWidth: 3,
+                        borderColor: "#FFF",
+                        transform: [{ scale: 1.05 }],
+                      }),
                   ]}
                   focusable={true}
                   onPress={() => {
@@ -221,7 +247,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 style={({ focused }: CustomPressableState) => [
                   styles.btn,
                   styles.saveBtn,
-                  focused && styles.focusedBtn,
+                  focused &&
+                    (styles.focusedBtn || {
+                      borderWidth: 3,
+                      borderColor: "#000",
+                      transform: [{ scale: 1.05 }],
+                    }),
                 ]}
                 focusable={true}
                 onPress={onSaveCredentials}

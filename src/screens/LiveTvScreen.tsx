@@ -45,14 +45,13 @@ interface LiveTvScreenProps {
 
 type CustomPressableState = PressableStateCallbackType & { focused?: boolean };
 
-// ChannelItem Yüksekliği (getItemLayout için stillerinizdeki yükseklik ile eşleşmeli)
 const CHANNEL_ITEM_HEIGHT = 60;
 
+// Optimized ChannelItem
 const ChannelItem = memo(
   ({
     item,
     isSelected,
-    isFocused,
     isFavorite,
     onFocus,
     onPress,
@@ -60,29 +59,34 @@ const ChannelItem = memo(
   }: {
     item: Channel;
     isSelected: boolean;
-    isFocused: boolean;
     isFavorite: boolean;
     onFocus: () => void;
     onPress: () => void;
     onToggleFavorite: () => void;
   }) => (
     <View
-      style={[
-        styles.channelCard,
-        isSelected && styles.selectedChannelCard,
-        isFocused && styles.focusedCard,
-        {
-          flexDirection: "row",
-          alignItems: "center",
-          height: CHANNEL_ITEM_HEIGHT,
-        },
-      ]}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        height: CHANNEL_ITEM_HEIGHT,
+        marginBottom: 4,
+      }}
     >
       <Pressable
-        style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
         focusable={true}
         onFocus={onFocus}
         onPress={onPress}
+        style={({ focused }: CustomPressableState) => [
+          styles.channelCard,
+          {
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            height: "100%",
+          },
+          isSelected && styles.selectedChannelCard,
+          focused && styles.focusedCard,
+        ]}
       >
         {item.logo ? (
           <Image
@@ -112,10 +116,13 @@ const ChannelItem = memo(
         onPress={onToggleFavorite}
         style={({ focused }: CustomPressableState) => [
           styles.favBtn,
-          focused && { backgroundColor: "#444", borderRadius: 4 },
+          { paddingHorizontal: 12, height: "100%", justifyContent: "center" },
+          focused && { backgroundColor: "#FFD70033", borderRadius: 4 },
         ]}
       >
-        <Text style={{ fontSize: 16 }}>{isFavorite ? "⭐" : "☆"}</Text>
+        <Text style={{ fontSize: 16, color: isFavorite ? "#FFD700" : "#888" }}>
+          {isFavorite ? "⭐" : "☆"}
+        </Text>
       </Pressable>
     </View>
   ),
@@ -147,7 +154,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
   setIsFullscreen,
   onGoBack,
 }) => {
-  // Kumanda Geri Tuşu Yönetimi
+  // Kumanda Geri Tuşu
   useEffect(() => {
     const backAction = () => {
       if (isFullscreen) {
@@ -165,26 +172,22 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
     return () => backHandler.remove();
   }, [isFullscreen, setIsFullscreen]);
 
-  // Seçili kanal değiştiğinde yükleme durumunu sıfırla
   useEffect(() => {
     if (selectedChannel) {
       setIsVideoLoading(true);
     }
   }, [selectedChannel?.url, setIsVideoLoading]);
 
-  // Kategorileri sekme durumuna (Tümü / Favoriler) göre filtrele
   const displayCategories =
     categoryTab === "FAV"
       ? categories.filter((c) => favoriteCategoryIds.includes(c.category_id))
       : categories;
 
-  // Render Performans İyileştirmeleri (useCallback)
   const renderChannelItem = useCallback(
     ({ item }: ListRenderItemInfo<Channel>) => (
       <ChannelItem
         item={item}
         isSelected={selectedChannel?.id === item.id}
-        isFocused={focusedId === `ch_${item.id}`}
         isFavorite={favorites.includes(item.id)}
         onFocus={() => setFocusedId(`ch_${item.id}`)}
         onPress={() => setSelectedChannel(item)}
@@ -193,7 +196,6 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
     ),
     [
       selectedChannel?.id,
-      focusedId,
       favorites,
       setFocusedId,
       setSelectedChannel,
@@ -203,8 +205,8 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
-      length: CHANNEL_ITEM_HEIGHT,
-      offset: CHANNEL_ITEM_HEIGHT * index,
+      length: CHANNEL_ITEM_HEIGHT + 4,
+      offset: (CHANNEL_ITEM_HEIGHT + 4) * index,
       index,
     }),
     [],
@@ -212,7 +214,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Sol Panel: Ülke Filtresi & Kategoriler */}
+      {/* Sol Panel: Kategoriler */}
       <View style={styles.categoryContainer}>
         <View style={styles.headerRow}>
           <Pressable
@@ -227,7 +229,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
           </Pressable>
         </View>
 
-        {/* TÜMÜ / FAVORİLERİM SEKME BUTONLARI */}
+        {/* Sekme Butonları */}
         {setCategoryTab && (
           <View
             style={{
@@ -290,7 +292,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
           </View>
         )}
 
-        {/* Yatay Ülke Seçim Şeridi */}
+        {/* Ülke Seçim Şeridi */}
         {allCountries.length > 1 && (
           <View
             style={{ maxHeight: 45, marginBottom: 8, paddingHorizontal: 4 }}
@@ -348,39 +350,42 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
             const isSelected = selectedCategoryId === item.category_id;
 
             return (
-              <Pressable
-                style={[
-                  styles.categoryCard,
-                  {
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  },
-                  isSelected && styles.selectedCategoryCard,
-                  focusedId === `cat_${item.category_id}` && styles.focusedCard,
-                ]}
-                focusable={true}
-                onFocus={() => setFocusedId(`cat_${item.category_id}`)}
-                onPress={() => setSelectedCategoryId(item.category_id)}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 4,
+                }}
               >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    isSelected && styles.selectedCategoryText,
+                <Pressable
+                  style={({ focused }: CustomPressableState) => [
+                    styles.categoryCard,
                     { flex: 1 },
+                    isSelected && styles.selectedCategoryCard,
+                    focused && styles.focusedCard,
                   ]}
-                  numberOfLines={1}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`cat_${item.category_id}`)}
+                  onPress={() => setSelectedCategoryId(item.category_id)}
                 >
-                  {item.category_name}
-                </Text>
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      isSelected && styles.selectedCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.category_name}
+                  </Text>
+                </Pressable>
 
-                {/* Kategori Favori Yıldızı */}
                 <Pressable
                   focusable={true}
                   onFocus={() => setFocusedId(`cat_fav_${item.category_id}`)}
                   onPress={() => toggleFavoriteCategory(item.category_id)}
                   style={({ focused }: CustomPressableState) => [
                     styles.favBtn,
+                    { paddingHorizontal: 8 },
                     focused && {
                       backgroundColor: "rgba(255,255,255,0.2)",
                       borderRadius: 4,
@@ -389,13 +394,13 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
                 >
                   <Text style={{ fontSize: 14 }}>{isCatFav ? "⭐" : "☆"}</Text>
                 </Pressable>
-              </Pressable>
+              </View>
             );
           }}
         />
       </View>
 
-      {/* Orta Panel: Kanallar Listesi */}
+      {/* Orta Panel: Kanal Listesi */}
       <View style={styles.channelContainer}>
         <Text style={styles.headerTitle}>
           Kanallar ({filteredChannels.length})
@@ -429,7 +434,6 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
       <View style={styles.playerContainer}>
         {selectedChannel ? (
           <View style={{ flex: 1, width: "100%" }}>
-            {/* Tam ekranda değilken küçük oynatıcıyı göster */}
             {!isFullscreen && (
               <View style={styles.videoWrapper}>
                 {isVideoLoading && (
@@ -444,9 +448,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
                   key={selectedChannel.url}
                   source={{
                     uri: selectedChannel.url,
-                    headers: {
-                      "User-Agent": "IPTV-Player",
-                    },
+                    headers: { "User-Agent": "IPTV-Player" },
                   }}
                   style={styles.videoPlayer}
                   controls={false}
@@ -495,9 +497,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
             key={`full_${selectedChannel.url}`}
             source={{
               uri: selectedChannel.url,
-              headers: {
-                "User-Agent": "IPTV-Player",
-              },
+              headers: { "User-Agent": "IPTV-Player" },
             }}
             style={styles.fullVideo}
             controls={true}

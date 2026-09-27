@@ -43,8 +43,10 @@ export const styles = StyleSheet.create({
   settingsBtn: {
     backgroundColor: "#333",
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   settingsBtnText: {
     color: "#FFF",
@@ -62,15 +64,18 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "transparent",
   },
   liveCard: { borderLeftColor: "#4CAF50", borderLeftWidth: 6 },
   moviesCard: { borderLeftColor: "#2196F3", borderLeftWidth: 6 },
   seriesCard: { borderLeftColor: "#9C27B0", borderLeftWidth: 6 },
+  // TV Odağı: Seçilen kart parlak turkuaz ve kalın çerçeveli olur, öne çıkar
   dashCardFocused: {
-    borderColor: "#FFD700",
-    transform: [{ scale: 1.05 }],
+    borderColor: "#00E5FF",
+    backgroundColor: "#2A2A2A",
+    transform: [{ scale: 1.08 }],
+    elevation: 10,
   },
   cardIcon: { fontSize: 40, marginBottom: 10 },
   cardTitle: { color: "#FFF", fontSize: 18, fontWeight: "bold" },
@@ -91,6 +96,8 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 4,
     backgroundColor: "#2A2A2A",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   selectedCategoryCard: { backgroundColor: "#FFD700" },
   categoryText: { color: "#FFF", fontSize: 12 },
@@ -103,14 +110,25 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 4,
     backgroundColor: "#2A2A2A",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   selectedChannelCard: {
     backgroundColor: "#333",
     borderWidth: 1,
     borderColor: "#FFD700",
   },
-  focusedCard: { borderColor: "#FFD700", borderWidth: 2 },
-  focusedBtn: { borderColor: "#FFD700", borderWidth: 2 },
+  // TV Kumanda Odak Stilleri
+  focusedCard: {
+    borderColor: "#00E5FF",
+    borderWidth: 2,
+    backgroundColor: "#3A3A3A",
+  },
+  focusedBtn: {
+    borderColor: "#00E5FF",
+    borderWidth: 2,
+    transform: [{ scale: 1.05 }],
+  },
 
   channelLogo: { width: 35, height: 35, borderRadius: 4, marginRight: 8 },
   noLogo: {
@@ -137,6 +155,8 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 8,
     fontSize: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
 
   // Video Oynatıcı
@@ -166,6 +186,8 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     marginTop: 10,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   fullScreenBtnText: { color: "#000", fontWeight: "bold", fontSize: 12 },
   placeholderText: { color: "#666", fontSize: 14 },
@@ -188,6 +210,8 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 4,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   posterImage: { width: "100%", height: 120, borderRadius: 4 },
   movieGridTitle: {
@@ -210,6 +234,8 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   playBtnText: { color: "#FFF", fontWeight: "bold" },
   episodeCard: {
@@ -217,24 +243,28 @@ export const styles = StyleSheet.create({
     backgroundColor: "#2A2A2A",
     borderRadius: 6,
     marginBottom: 4,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.85)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
-    width: 320,
+    width: 400, // TV ekranı için biraz daha geniş
     backgroundColor: "#222",
-    padding: 20,
-    borderRadius: 10,
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#444",
   },
   modalTitle: {
     color: "#FFD700",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 15,
     textAlign: "center",
@@ -259,7 +289,7 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 14,
     fontSize: 13,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#444",
   },
   modalButtons: {
@@ -273,6 +303,8 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: "center",
     marginHorizontal: 4,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   saveBtn: { backgroundColor: "#4CAF50" },
   cancelBtn: { backgroundColor: "#E53935" },

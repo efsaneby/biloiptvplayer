@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useCallback } from "react";
+import React, { memo, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   BackHandler,
   ListRenderItemInfo,
+  PressableStateCallbackType,
 } from "react-native";
 import Video from "react-native-video";
 import { styles } from "../styles/appStyles";
@@ -43,26 +44,29 @@ interface MoviesScreenProps {
   onGoBack: () => void;
 }
 
-type CustomPressableState = { pressed: boolean; focused?: boolean };
+type CustomPressableState = PressableStateCallbackType & { focused?: boolean };
 
-// Film kartı yüksekliği (getItemLayout için sabitleme)
-const MOVIE_CARD_HEIGHT = 180;
+// Film kartı yüksekliği + dikey marjin
+const MOVIE_CARD_HEIGHT = 190;
 
 // Render optimizasyonu için memoize edilmiş Film Kartı
 const MovieItem = memo(
   ({
     item,
-    isFocused,
+    isFocusedProp,
     onFocus,
     onPress,
   }: {
     item: VodItem;
-    isFocused: boolean;
+    isFocusedProp: boolean;
     onFocus: () => void;
     onPress: () => void;
   }) => (
     <Pressable
-      style={[styles.movieGridCard, isFocused && styles.focusedCard]}
+      style={({ focused }: CustomPressableState) => [
+        styles.movieGridCard,
+        (focused || isFocusedProp) && styles.focusedCard,
+      ]}
       focusable={true}
       onFocus={onFocus}
       onPress={onPress}
@@ -104,7 +108,9 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
   onPlayMovie,
   onGoBack,
 }) => {
-  // Kumanda Geri Tuşu Yönetimi (Tam ekrandan çıkış kontrolü)
+  const movieListRef = useRef<FlatList>(null);
+
+  // Kumanda Geri Tuşu Yönetimi
   useEffect(() => {
     const backAction = () => {
       if (isFullscreen && setIsFullscreen) {
@@ -122,12 +128,19 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
     return () => backHandler.remove();
   }, [isFullscreen, setIsFullscreen]);
 
+  // Kategori veya Arama değiştiğinde Grid listesini başa sar
+  useEffect(() => {
+    if (filteredMovies.length > 0 && movieListRef.current) {
+      movieListRef.current.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, [selectedMovieCatId, searchQuery]);
+
   // Film Kartı Render Fonksiyonu
   const renderMovieItem = useCallback(
     ({ item }: ListRenderItemInfo<VodItem>) => (
       <MovieItem
         item={item}
-        isFocused={focusedId === `mov_${item.stream_id}`}
+        isFocusedProp={focusedId === `mov_${item.stream_id}`}
         onFocus={() => setFocusedId(`mov_${item.stream_id}`)}
         onPress={() => setSelectedMovie(item)}
       />
@@ -135,7 +148,7 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
     [focusedId, setFocusedId, setSelectedMovie],
   );
 
-  // FlatList Kaydırma Performansı İyileştirmesi
+  // 2 Kolonlu FlatList için getItemLayout Hesabı
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
       length: MOVIE_CARD_HEIGHT,
@@ -147,7 +160,7 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Film Kategorileri */}
+      {/* Sol Panel: Film Kategorileri */}
       <View style={styles.categoryContainer}>
         <View style={styles.headerRow}>
           <Pressable
@@ -161,6 +174,7 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
             <Text style={styles.settingsBtnText}>⬅ Ana Menü</Text>
           </Pressable>
         </View>
+
         {moviesLoading ? (
           <ActivityIndicator
             size="small"
@@ -186,36 +200,37 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
                 Kategori bulunamadı.
               </Text>
             }
-            renderItem={({ item }) => (
-              <Pressable
-                style={[
-                  styles.categoryCard,
-                  selectedMovieCatId === item.category_id &&
-                    styles.selectedCategoryCard,
-                  focusedId === `mcat_${item.category_id}` &&
-                    styles.focusedCard,
-                ]}
-                focusable={true}
-                onFocus={() => setFocusedId(`mcat_${item.category_id}`)}
-                onPress={() => setSelectedMovieCatId(item.category_id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    selectedMovieCatId === item.category_id &&
-                      styles.selectedCategoryText,
+            renderItem={({ item }) => {
+              const isSelected = selectedMovieCatId === item.category_id;
+              return (
+                <Pressable
+                  style={({ focused }: CustomPressableState) => [
+                    styles.categoryCard,
+                    isSelected && styles.selectedCategoryCard,
+                    (focused || focusedId === `mcat_${item.category_id}`) &&
+                      styles.focusedCard,
                   ]}
-                  numberOfLines={1}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`mcat_${item.category_id}`)}
+                  onPress={() => setSelectedMovieCatId(item.category_id)}
                 >
-                  {item.category_name}
-                </Text>
-              </Pressable>
-            )}
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      isSelected && styles.selectedCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.category_name}
+                  </Text>
+                </Pressable>
+              );
+            }}
           />
         )}
       </View>
 
-      {/* Film Grid Listesi */}
+      {/* Orta Panel: Film Grid Listesi */}
       <View style={styles.channelContainer}>
         <Text style={styles.headerTitle}>
           Filmler ({filteredMovies.length})
@@ -231,6 +246,7 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
           onChangeText={setSearchQuery}
           onFocus={() => setFocusedId("m_search")}
         />
+
         {moviesLoading ? (
           <ActivityIndicator
             size="large"
@@ -239,6 +255,7 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
           />
         ) : (
           <FlatList
+            ref={movieListRef}
             data={filteredMovies}
             keyExtractor={(item) => item.stream_id.toString()}
             numColumns={2}
@@ -260,18 +277,24 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
         )}
       </View>
 
-      {/* Film Detay Paneli */}
+      {/* Sağ Panel: Film Detay Paneli */}
       <View style={styles.playerContainer}>
         {selectedMovie ? (
           <View style={styles.movieDetailContainer}>
-            {selectedMovie.stream_icon && (
+            {selectedMovie.stream_icon ? (
               <Image
                 source={{ uri: selectedMovie.stream_icon }}
                 style={styles.detailPoster}
                 resizeMode="contain"
               />
+            ) : (
+              <View style={[styles.detailPoster, styles.noLogo]}>
+                <Text style={{ fontSize: 40 }}>🎬</Text>
+              </View>
             )}
+
             <Text style={styles.detailTitle}>{selectedMovie.name}</Text>
+
             <Pressable
               style={({ focused }: CustomPressableState) => [
                 styles.playBtn,
@@ -288,7 +311,7 @@ export const MoviesScreen: React.FC<MoviesScreenProps> = ({
         )}
       </View>
 
-      {/* Tam Ekran Film Oynatıcı */}
+      {/* Tam Ekran Oynatıcı */}
       {isFullscreen && activeMediaUrl && (
         <View style={styles.fullPlayerContainer}>
           <Video

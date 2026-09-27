@@ -3,7 +3,7 @@
     "name": "Bilo IPTV Player",
     "slug": "bilo-iptv-player",
     "version": "1.0.0",
-    "icon": "./assets/android-icon-foreground.png",
+    "icon": "./assets/splash-icon.png",
     "userInterfaceStyle": "dark",
     "plugins": [
       [
@@ -18,28 +18,18 @@
         "@react-native-tvos/config-tv",
         {
           "isTV": true,
-          "showBanner": true,
-          "banner": "./assets/tv-banner.png"
+          "androidTVRequired": true,
+          "androidTVBanner": "./assets/tv-banner.png"
         }
       ]
     ],
     "android": {
       "package": "com.anonymous.biloiptvplayer",
       "usesCleartextTraffic": true,
-      "banner": "./assets/tv-banner.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#2B2D42"
       },
-      "intentFilters": [
-        {
-          "action": "android.intent.action.MAIN",
-          "category": [
-            "android.intent.category.LEANBACK_LAUNCHER",
-            "android.intent.category.LAUNCHER"
-          ]
-        }
-      ],
       "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"]
     },
     "extra": {

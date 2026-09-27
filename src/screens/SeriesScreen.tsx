@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useCallback } from "react";
+import React, { memo, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   BackHandler,
   ListRenderItemInfo,
+  PressableStateCallbackType,
 } from "react-native";
 import Video from "react-native-video";
 import { styles } from "../styles/appStyles";
@@ -56,7 +57,7 @@ interface SeriesScreenProps {
   onGoBack: () => void;
 }
 
-type CustomPressableState = { pressed: boolean; focused?: boolean };
+type CustomPressableState = PressableStateCallbackType & { focused?: boolean };
 
 const SERIES_CARD_HEIGHT = 180;
 
@@ -64,20 +65,20 @@ const SERIES_CARD_HEIGHT = 180;
 const SeriesItemCard = memo(
   ({
     item,
-    isFocused,
+    isFocusedProp,
     onFocus,
     onPress,
   }: {
     item: SeriesItem;
-    isFocused: boolean;
+    isFocusedProp: boolean;
     onFocus: () => void;
     onPress: () => void;
   }) => (
     <Pressable
-      style={[
+      style={({ focused }: CustomPressableState) => [
         styles.movieGridCard,
-        { width: "23%" },
-        isFocused && styles.focusedCard,
+        { flex: 1, margin: 4 },
+        (focused || isFocusedProp) && styles.focusedCard,
       ]}
       focusable={true}
       onFocus={onFocus}
@@ -125,20 +126,19 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
   onPlayEpisode,
   onGoBack,
 }) => {
+  const seriesListRef = useRef<FlatList>(null);
+
   // Kumanda Geri Tuşu Yönetimi
   useEffect(() => {
     const backAction = () => {
-      // 1. Tam ekranda video oynatılıyorsa önce videoyu kapat
       if (isFullscreen && setIsFullscreen) {
         setIsFullscreen(false);
         return true;
       }
-      // 2. Bir dizinin detayındaysa dizi listesine dön
       if (selectedSeries) {
         setSelectedSeries(null);
         return true;
       }
-      // 3. Normal durumdaysa varsayılan geri fonksiyonunu çalıştır
       return false;
     };
 
@@ -150,12 +150,32 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
     return () => backHandler.remove();
   }, [isFullscreen, setIsFullscreen, selectedSeries, setSelectedSeries]);
 
+  // Kategori veya Arama değiştiğinde Grid listesini başa sar
+  useEffect(() => {
+    if (filteredSeries.length > 0 && seriesListRef.current) {
+      seriesListRef.current.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, [selectedSeriesCatId, searchQuery]);
+
+  // Dizi Detayına girildiğinde ilk sezonu otomatik seç
+  useEffect(() => {
+    if (selectedSeries && episodes) {
+      const seasonKeys = Object.keys(episodes);
+      if (
+        seasonKeys.length > 0 &&
+        (!selectedSeason || !episodes[selectedSeason])
+      ) {
+        setSelectedSeason(seasonKeys[0]);
+      }
+    }
+  }, [selectedSeries, episodes, selectedSeason, setSelectedSeason]);
+
   // Dizi Kartı Render Fonksiyonu
   const renderSeriesItem = useCallback(
     ({ item }: ListRenderItemInfo<SeriesItem>) => (
       <SeriesItemCard
         item={item}
-        isFocused={focusedId === `ser_${item.series_id}`}
+        isFocusedProp={focusedId === `ser_${item.series_id}`}
         onFocus={() => setFocusedId(`ser_${item.series_id}`)}
         onPress={() => {
           setSelectedSeries(item);
@@ -166,7 +186,7 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
     [focusedId, setFocusedId, setSelectedSeries, onFetchSeriesEpisodes],
   );
 
-  // FlatList Hizalaması ve Kaydırma Optimizasyonu (4 sütunlu grid hesabı)
+  // FlatList 4 sütunlu grid hesaplaması
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
       length: SERIES_CARD_HEIGHT,
@@ -217,31 +237,32 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
                 Kategori bulunamadı.
               </Text>
             }
-            renderItem={({ item }) => (
-              <Pressable
-                style={[
-                  styles.categoryCard,
-                  selectedSeriesCatId === item.category_id &&
-                    styles.selectedCategoryCard,
-                  focusedId === `scat_${item.category_id}` &&
-                    styles.focusedCard,
-                ]}
-                focusable={true}
-                onFocus={() => setFocusedId(`scat_${item.category_id}`)}
-                onPress={() => setSelectedSeriesCatId(item.category_id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    selectedSeriesCatId === item.category_id &&
-                      styles.selectedCategoryText,
+            renderItem={({ item }) => {
+              const isSelected = selectedSeriesCatId === item.category_id;
+              return (
+                <Pressable
+                  style={({ focused }: CustomPressableState) => [
+                    styles.categoryCard,
+                    isSelected && styles.selectedCategoryCard,
+                    (focused || focusedId === `scat_${item.category_id}`) &&
+                      styles.focusedCard,
                   ]}
-                  numberOfLines={1}
+                  focusable={true}
+                  onFocus={() => setFocusedId(`scat_${item.category_id}`)}
+                  onPress={() => setSelectedSeriesCatId(item.category_id)}
                 >
-                  {item.category_name}
-                </Text>
-              </Pressable>
-            )}
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      isSelected && styles.selectedCategoryText,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.category_name}
+                  </Text>
+                </Pressable>
+              );
+            }}
           />
         )}
       </View>
@@ -271,6 +292,7 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
             />
           ) : (
             <FlatList
+              ref={seriesListRef}
               data={filteredSeries}
               keyExtractor={(item) => item.series_id.toString()}
               numColumns={4}
@@ -293,7 +315,7 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
         </View>
       ) : (
         <View style={{ flex: 1, flexDirection: "row", padding: 8 }}>
-          {/* Sezon Seçimi */}
+          {/* Sezon Seçimi Paneli */}
           <View style={{ width: "35%", paddingRight: 8 }}>
             <Pressable
               style={({ focused }: CustomPressableState) => [
@@ -324,29 +346,40 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
                 >
                   SEZONLAR:
                 </Text>
-                {Object.keys(episodes).map((seasonKey) => (
-                  <Pressable
-                    key={seasonKey}
-                    style={[
-                      styles.categoryCard,
-                      selectedSeason === seasonKey &&
-                        styles.selectedCategoryCard,
-                      focusedId === `season_${seasonKey}` && styles.focusedCard,
-                    ]}
-                    focusable={true}
-                    onFocus={() => setFocusedId(`season_${seasonKey}`)}
-                    onPress={() => setSelectedSeason(seasonKey)}
-                  >
-                    <Text style={{ color: "#FFF", fontSize: 12 }}>
-                      Sezon {seasonKey}
-                    </Text>
-                  </Pressable>
-                ))}
+                {Object.keys(episodes).map((seasonKey) => {
+                  const isSelectedSeason = selectedSeason === seasonKey;
+                  return (
+                    <Pressable
+                      key={seasonKey}
+                      style={({ focused }: CustomPressableState) => [
+                        styles.categoryCard,
+                        isSelectedSeason && styles.selectedCategoryCard,
+                        (focused || focusedId === `season_${seasonKey}`) &&
+                          styles.focusedCard,
+                      ]}
+                      focusable={true}
+                      onFocus={() => setFocusedId(`season_${seasonKey}`)}
+                      onPress={() => setSelectedSeason(seasonKey)}
+                    >
+                      <Text
+                        style={[
+                          { color: "#FFF", fontSize: 12 },
+                          isSelectedSeason && {
+                            fontWeight: "bold",
+                            color: "#FFD700",
+                          },
+                        ]}
+                      >
+                        Sezon {seasonKey}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
             )}
           </View>
 
-          {/* Bölümler Listesi */}
+          {/* Bölümler Listesi Paneli */}
           <View style={{ width: "65%", paddingLeft: 8 }}>
             <Text
               style={{
@@ -368,7 +401,8 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
                   <Pressable
                     style={({ focused }: CustomPressableState) => [
                       styles.episodeCard,
-                      focused && styles.focusedCard,
+                      (focused || focusedId === `ep_${item.id}`) &&
+                        styles.focusedCard,
                     ]}
                     focusable={true}
                     onFocus={() => setFocusedId(`ep_${item.id}`)}
@@ -382,7 +416,9 @@ export const SeriesScreen: React.FC<SeriesScreenProps> = ({
                 )}
               />
             ) : (
-              <Text style={{ color: "#AAA" }}>Bölüm bulunamadı.</Text>
+              <Text style={{ color: "#AAA" }}>
+                {seriesLoading ? "Bölümler yükleniyor..." : "Bölüm bulunamadı."}
+              </Text>
             )}
           </View>
         </View>
