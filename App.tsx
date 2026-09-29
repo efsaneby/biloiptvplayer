@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -60,6 +60,8 @@ export default function App() {
   const [movies, setMovies] = useState<VodItem[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<VodItem | null>(null);
   const [moviesLoading, setMoviesLoading] = useState(false);
+  const [loadedMovieCategoryId, setLoadedMovieCategoryId] = useState<string | null>(null);
+  const movieRequestId = useRef(0);
 
   // Series State
   const [seriesCategories, setSeriesCategories] = useState<Category[]>([]);
@@ -70,6 +72,8 @@ export default function App() {
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [seriesLoaded, setSeriesLoaded] = useState(false);
+  const [loadedSeriesCategoryId, setLoadedSeriesCategoryId] = useState<string | null>(null);
+  const seriesRequestId = useRef(0);
 
   // Initial Load
   useEffect(() => {
@@ -90,10 +94,44 @@ export default function App() {
 
   // Filmler ekranına girildiğinde veri yoksa otomatik çek
   useEffect(() => {
-    if (currentScreen === "movies" && movies.length === 0 && !moviesLoading) {
-      handleFetchMovies();
+    if (currentScreen !== "movies") return;
+    if (movieCategories.length > 0 && selectedMovieCatId && loadedMovieCategoryId !== selectedMovieCatId && !moviesLoading) {
+      const categoryId = selectedMovieCatId;
+      const requestId = ++movieRequestId.current;
+      setMoviesLoading(true);
+      fetchVodStreams(serverInput, userInput, passInput, categoryId)
+        .then((items) => {
+          if (requestId === movieRequestId.current) {
+            setMovies(items);
+            setLoadedMovieCategoryId(categoryId);
+          }
+        })
+        .catch((e) => console.error("Movies could not be loaded:", e))
+        .finally(() => {
+          if (requestId === movieRequestId.current) setMoviesLoading(false);
+        });
     }
-  }, [currentScreen, movies.length, moviesLoading]);
+  }, [currentScreen, movieCategories, selectedMovieCatId, loadedMovieCategoryId, moviesLoading]);
+
+  useEffect(() => {
+    if (currentScreen !== "series") return;
+    if (seriesCategories.length > 0 && selectedSeriesCatId && loadedSeriesCategoryId !== selectedSeriesCatId && !seriesLoading) {
+      const categoryId = selectedSeriesCatId;
+      const requestId = ++seriesRequestId.current;
+      setSeriesLoading(true);
+      fetchSeries(serverInput, userInput, passInput, categoryId)
+        .then((items) => {
+          if (requestId === seriesRequestId.current) {
+            setSeriesList(items);
+            setLoadedSeriesCategoryId(categoryId);
+          }
+        })
+        .catch((e) => console.error("Series could not be loaded:", e))
+        .finally(() => {
+          if (requestId === seriesRequestId.current) setSeriesLoading(false);
+        });
+    }
+  }, [currentScreen, seriesCategories, selectedSeriesCatId, loadedSeriesCategoryId, seriesLoading, seriesLoaded]);
 
   const loadSavedCredentials = async (isMounted = true) => {
     try {
@@ -285,15 +323,13 @@ export default function App() {
 
   // Movies Loader
   const handleFetchMovies = async () => {
-    if (movies.length > 0 || moviesLoading) return;
+    if (movieCategories.length > 0 || moviesLoading) return;
     setMoviesLoading(true);
     try {
       const mCats = await fetchVodCategories(serverInput, userInput, passInput);
       setMovieCategories(mCats);
       if (mCats.length > 0) setSelectedMovieCatId(mCats[0].category_id);
 
-      const mList = await fetchVodStreams(serverInput, userInput, passInput);
-      setMovies(mList);
     } catch (e) {
       console.error("Filmler yüklenirken hata oluştu:", e);
     } finally {
@@ -303,7 +339,7 @@ export default function App() {
 
   // Series Loader
   const handleFetchSeries = async () => {
-    if (seriesLoaded || seriesLoading) return;
+    if (seriesLoaded || seriesCategories.length > 0 || seriesLoading) return;
     setSeriesLoading(true);
     try {
       const sCats = await fetchSeriesCategories(
@@ -314,8 +350,6 @@ export default function App() {
       setSeriesCategories(sCats);
       if (sCats.length > 0) setSelectedSeriesCatId(sCats[0].category_id);
 
-      const sList = await fetchSeries(serverInput, userInput, passInput);
-      setSeriesList(sList);
       setSeriesLoaded(true);
     } catch (e) {
       console.error("Diziler yüklenirken hata oluştu:", e);
@@ -363,11 +397,10 @@ export default function App() {
   const filteredChannels = useMemo(() => {
     if (categoryTab === "FAV") {
       // FAVORİLER Sekmesi: Hem tekil favori kanalları HEM DE favori kategorilerin kanallarını getir
-      return channels.filter(
-        (ch) =>
-          favorites.includes(ch.id) ||
-          favoriteCategoryIds.includes(ch.category_id),
-      );
+      if (favoriteCategoryIds.includes(selectedCategoryId)) {
+        return channels.filter((ch) => ch.category_id === selectedCategoryId);
+      }
+      return channels.filter((ch) => favorites.includes(ch.id));
     }
 
     // ALL Sekmesi: Seçili kategoriye göre getir

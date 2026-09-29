@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useCallback } from "react";
+import React, { memo, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -46,6 +46,7 @@ interface LiveTvScreenProps {
 type CustomPressableState = PressableStateCallbackType & { focused?: boolean };
 
 const CHANNEL_ITEM_HEIGHT = 60;
+const CATEGORY_ROW_HEIGHT = 46;
 
 // Optimized ChannelItem
 const ChannelItem = memo(
@@ -53,20 +54,12 @@ const ChannelItem = memo(
     item,
     isSelected,
     isFavorite,
-    isFocused,
-    isFavoriteFocused,
-    onFocus,
-    onFavoriteFocus,
     onPress,
     onToggleFavorite,
   }: {
     item: Channel;
     isSelected: boolean;
     isFavorite: boolean;
-    isFocused: boolean;
-    isFavoriteFocused: boolean;
-    onFocus: () => void;
-    onFavoriteFocus: () => void;
     onPress: () => void;
     onToggleFavorite: () => void;
   }) => (
@@ -80,7 +73,6 @@ const ChannelItem = memo(
     >
       <Pressable
         focusable={true}
-        onFocus={onFocus}
         onPress={onPress}
         style={({ focused }: CustomPressableState) => [
           styles.channelCard,
@@ -91,7 +83,7 @@ const ChannelItem = memo(
             height: "100%",
           },
           isSelected && styles.selectedChannelCard,
-          (focused || isFocused) && styles.focusedCard,
+          focused && styles.focusedCard,
         ]}
       >
         {item.logo ? (
@@ -119,12 +111,11 @@ const ChannelItem = memo(
 
       <Pressable
         focusable={true}
-        onFocus={onFavoriteFocus}
         onPress={onToggleFavorite}
         style={({ focused }: CustomPressableState) => [
           styles.favBtn,
           { paddingHorizontal: 12, height: "100%", justifyContent: "center" },
-          (focused || isFavoriteFocused) && styles.focusedCard,
+          focused && styles.focusedCard,
         ]}
       >
         <Text style={{ fontSize: 16, color: isFavorite ? "#FFD700" : "#888" }}>
@@ -189,6 +180,15 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
     categoryTab === "FAV"
       ? categories.filter((c) => favoriteCategoryIds.includes(c.category_id))
       : categories;
+  const categoryListRef = useRef<FlatList<Category>>(null);
+
+  const keepCategoryVisible = useCallback((index: number) => {
+    categoryListRef.current?.scrollToIndex({
+      index,
+      viewPosition: 0.5,
+      animated: false,
+    });
+  }, []);
 
   const renderChannelItem = useCallback(
     ({ item }: ListRenderItemInfo<Channel>) => (
@@ -196,10 +196,6 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
         item={item}
         isSelected={selectedChannel?.id === item.id}
         isFavorite={favorites.includes(item.id)}
-        isFocused={focusedId === `ch_${item.id}`}
-        isFavoriteFocused={focusedId === `ch_fav_${item.id}`}
-        onFocus={() => setFocusedId(`ch_${item.id}`)}
-        onFavoriteFocus={() => setFocusedId(`ch_fav_${item.id}`)}
         onPress={() => setSelectedChannel(item)}
         onToggleFavorite={() => toggleFavorite(item.id)}
       />
@@ -207,8 +203,6 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
     [
       selectedChannel?.id,
       favorites,
-      focusedId,
-      setFocusedId,
       setSelectedChannel,
       toggleFavorite,
     ],
@@ -354,9 +348,20 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
 
         {/* Kategori Listesi */}
         <FlatList
+          ref={categoryListRef}
           data={displayCategories}
           keyExtractor={(item) => item.category_id}
-          renderItem={({ item }) => {
+          initialNumToRender={24}
+          maxToRenderPerBatch={16}
+          updateCellsBatchingPeriod={30}
+          windowSize={21}
+          removeClippedSubviews={false}
+          getItemLayout={(_, index) => ({
+            length: CATEGORY_ROW_HEIGHT,
+            offset: CATEGORY_ROW_HEIGHT * index,
+            index,
+          })}
+          renderItem={({ item, index }) => {
             const isCatFav = favoriteCategoryIds.includes(item.category_id);
             const isSelected = selectedCategoryId === item.category_id;
 
@@ -365,7 +370,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  marginBottom: 4,
+                  height: CATEGORY_ROW_HEIGHT,
                 }}
               >
                 <Pressable
@@ -376,7 +381,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
                     focused && styles.focusedCard,
                   ]}
                   focusable={true}
-                  onFocus={() => setFocusedId(`cat_${item.category_id}`)}
+                  onFocus={() => keepCategoryVisible(index)}
                   onPress={() => setSelectedCategoryId(item.category_id)}
                 >
                   <Text
@@ -392,7 +397,7 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
 
                 <Pressable
                   focusable={true}
-                  onFocus={() => setFocusedId(`cat_fav_${item.category_id}`)}
+                  onFocus={() => keepCategoryVisible(index)}
                   onPress={() => toggleFavoriteCategory(item.category_id)}
                   style={({ focused }: CustomPressableState) => [
                     styles.favBtn,
@@ -431,12 +436,11 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
         <FlatList
           data={filteredChannels}
           keyExtractor={(item) => item.id}
-          initialNumToRender={12}
-          maxToRenderPerBatch={8}
+          initialNumToRender={24}
+          maxToRenderPerBatch={16}
           updateCellsBatchingPeriod={50}
-          windowSize={5}
+          windowSize={21}
           removeClippedSubviews={false}
-          extraData={focusedId}
           getItemLayout={getItemLayout}
           renderItem={renderChannelItem}
         />
@@ -482,7 +486,8 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
               </View>
             )}
 
-            <View style={styles.channelInfoContainer}>
+            {!isFullscreen && (
+              <View style={styles.channelInfoContainer}>
               <Text style={styles.selectedChannelTitle}>
                 {selectedChannel.name}
               </Text>
@@ -496,7 +501,8 @@ export const LiveTvScreen: React.FC<LiveTvScreenProps> = ({
               >
                 <Text style={styles.fullScreenBtnText}>⛶ Tam Ekran Yap</Text>
               </Pressable>
-            </View>
+              </View>
+            )}
           </View>
         ) : (
           <Text style={styles.placeholderText}>

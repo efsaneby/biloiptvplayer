@@ -169,9 +169,11 @@ export const fetchVodStreams = async (
   server: string,
   user: string,
   pass: string,
+  categoryId?: string,
 ): Promise<VodItem[]> => {
   const baseUrl = cleanUrl(server);
-  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_vod_streams`;
+  const categoryParam = categoryId ? `&category_id=${encodeURIComponent(categoryId)}` : "";
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_vod_streams${categoryParam}`;
   const data = await safeFetchJson(url);
 
   if (!Array.isArray(data)) return [];
@@ -204,9 +206,11 @@ export const fetchSeries = async (
   server: string,
   user: string,
   pass: string,
+  categoryId?: string,
 ): Promise<SeriesItem[]> => {
   const baseUrl = cleanUrl(server);
-  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_series`;
+  const categoryParam = categoryId ? `&category_id=${encodeURIComponent(categoryId)}` : "";
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&action=get_series${categoryParam}`;
   const data = await safeFetchJson(url);
 
   if (!Array.isArray(data)) return [];
